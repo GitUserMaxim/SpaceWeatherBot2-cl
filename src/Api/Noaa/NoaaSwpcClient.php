@@ -52,7 +52,15 @@ final class NoaaSwpcClient implements NoaaClientInterface
      */
     private function fetchJson(string $url, int $ttl): array
     {
+        //$payload = $this->http->get($url, $ttl);
+        //$decoded = json_decode($payload, true);
+
         $payload = $this->http->get($url, $ttl);
+
+    
+        fwrite(STDERR, '[DEBUG] Fetching URL: ' . $url . PHP_EOL);
+        fwrite(STDERR, '[DEBUG] Payload length: ' . strlen($payload) . PHP_EOL);
+
         $decoded = json_decode($payload, true);
 
         if (! is_array($decoded)) {

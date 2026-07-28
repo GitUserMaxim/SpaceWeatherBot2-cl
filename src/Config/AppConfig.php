@@ -26,7 +26,7 @@ final class AppConfig
             telegramWebhookSecret: self::optionalEnv('TELEGRAM_WEBHOOK_SECRET'),
             appEnv: self::optionalEnv('APP_ENV') ?? 'prod',
             logLevel: self::optionalEnv('LOG_LEVEL') ?? 'info',
-            githubRepo: self::optionalEnv('GITHUB_REPO') ?? 'https://github.com/yourusername/SpaceWeatherBot',
+            githubRepo: self::optionalEnv('GITHUB_REPO') ?? 'https://github.com/GitUserMaxim/SpaceWeatherBot2-cl',
             developerName: self::optionalEnv('DEVELOPER_NAME') ?? 'Maxim',
             defaultLocale: self::optionalEnv('DEFAULT_LOCALE') ?? 'ru',
             projectRoot: $projectRoot,
