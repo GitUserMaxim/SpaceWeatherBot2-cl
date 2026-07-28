@@ -50,79 +50,22 @@ final class NoaaSwpcClient implements NoaaClientInterface
     /**
      * @return list<array<string, mixed>>
      */
-    // private function fetchJson(string $url, int $ttl): array
-    // {
-    //     //$payload = $this->http->get($url, $ttl);
-    //     //$decoded = json_decode($payload, true);
-
-    //     $payload = $this->http->get($url, $ttl);
-
-    
-    //     fwrite(STDERR, '[DEBUG] Fetching URL: ' . $url . PHP_EOL);
-    //     fwrite(STDERR, '[DEBUG] Payload length: ' . strlen($payload) . PHP_EOL);
-
-    //     $decoded = json_decode($payload, true);
-
-    //     if (! is_array($decoded)) {
-    //         throw new ApiException(sprintf('Invalid JSON response from NOAA: %s', $url));
-    //     }
-
-    //     /** @var list<array<string, mixed>> $decoded */
-    //     return $decoded;
-    // }
-
-    // /**
-    //  * @return list<array<int|string, mixed>>
-    //  */
-
     private function fetchJson(string $url, int $ttl): array
-{
-    // 1. Делаем запрос
-    $payload = $this->http->get($url, $ttl);
+    {
+        $payload = $this->http->get($url, $ttl);
+        $decoded = json_decode($payload, true);
 
-    // 2. Логируем для Render (через STDERR!)
-    fwrite(STDERR, '[DEBUG] Fetching URL: ' . $url . PHP_EOL);
-    fwrite(STDERR, '[DEBUG] Payload length: ' . strlen($payload) . PHP_EOL);
+        if (! is_array($decoded)) {
+            throw new ApiException(sprintf('Invalid JSON response from NOAA: %s', $url));
+        }
 
-    // Если payload пустой - сразу логируем, это частая проблема кэша
-    if ($payload === '') {
-        fwrite(STDERR, '[WARNING] Payload is EMPTY! Check CachedHttpClient cache.' . PHP_EOL);
-    } else {
-        // Выводим первые 100 символов, чтобы видеть, JSON ли там вообще, или HTML ошибка
-        $preview = substr($payload, 0, 100);
-        // Экранируем спецсимволы, чтобы лог не сломался
-        $safePreview = addcslashes($preview, "\n\r\t");
-        fwrite(STDERR, '[DEBUG] First 100 chars: ' . $safePreview . PHP_EOL);
+        /** @var list<array<string, mixed>> $decoded */
+        return $decoded;
     }
 
-    // 3. Декодируем
-    $decoded = json_decode($payload, true);
-
-    // 4. ГЛАВНОЕ: Проверяем, была ли ошибка парсинга, ДО проверки типа
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        $errorMsg = json_last_error_msg();
-        $errorCode = json_last_error();
-        
-        // Пишем детальную ошибку в логи Render
-        fwrite(STDERR, '[ERROR] JSON Decode failed: ' . $errorMsg . ' (Code: ' . $errorCode . ')' . PHP_EOL);
-        
-        throw new ApiException(sprintf(
-            'JSON Decode Error: %s (Code: %d) for URL: %s',
-            $errorMsg,
-            $errorCode,
-            $url
-        ));
-    }
-
-    // 5. Проверяем тип данных
-    if (! is_array($decoded)) {
-        fwrite(STDERR, '[ERROR] Decoded result is not an array. Type: ' . gettype($decoded) . PHP_EOL);
-        throw new ApiException(sprintf('Invalid JSON response from NOAA: %s', $url));
-    }
-
-    /** @var list<array<string, mixed>> $decoded */
-    return $decoded;
-}
+    /**
+     * @return list<array<int|string, mixed>>
+     */
 
     private function fetchTabularJson(string $url, int $ttl): array
     {
