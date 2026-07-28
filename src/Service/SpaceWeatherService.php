@@ -206,7 +206,7 @@ final class SpaceWeatherService
             }
         }
 
-        $list = array_keys($numbers);
+        $list = array_map('strval', array_keys($numbers));
         sort($list);
 
         return array_slice($list, -8);

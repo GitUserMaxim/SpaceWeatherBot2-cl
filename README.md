@@ -49,7 +49,45 @@ curl -F "url=https://your-domain.example.com/index.php" \
 - `/start` или `/menu` — показать главное меню.
 - Дальше — обычная навигация кнопками (reply-клавиатура), без inline-кнопок.
 
-## Известные ограничения
+## Деплой на Render
+
+Render — обычный Web Service, слушающий `$PORT`, поэтому бот там работает через **webhook**,
+а не long polling (long polling на Render означал бы платный Background Worker).
+
+1. Запушить репозиторий (с этим `Dockerfile`) на GitHub — Render сам подхватит Docker-образ
+   при подключении репо.
+2. На render.com: **New → Web Service** → выбрать репозиторий → Environment: **Docker**
+   (Dockerfile найдётся автоматически, отдельно ничего указывать не нужно).
+3. В Environment Variables на Render задать:
+   - `TELEGRAM_BOT_TOKEN` — токен от @BotFather
+   - `TELEGRAM_WEBHOOK_SECRET` — любая случайная строка (например, `openssl rand -hex 24`)
+   - `APP_ENV=prod`
+   - `LOG_LEVEL=info`
+   - `GITHUB_REPO`, `DEVELOPER_NAME`, `DEFAULT_LOCALE` — по желанию
+4. После деплоя Render даст URL вида `https://space-weather-bot.onrender.com`.
+   Один раз зарегистрировать вебхук:
+
+```bash
+curl -F "url=https://space-weather-bot.onrender.com/index.php" \
+     -F "secret_token=<то, что положил в TELEGRAM_WEBHOOK_SECRET>" \
+     "https://api.telegram.org/bot<TOKEN>/setWebhook"
+```
+
+5. Проверить, что Telegram видит вебхук нормально:
+
+```bash
+curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"
+```
+
+`last_error_message` должен быть пустым.
+
+**Важно про хранение настроек:** `storage/users/*.json` живёт на диске контейнера Render,
+который эфемерный — при каждом новом деплое (не при обычном рестарте/сне) файлы сбрасываются,
+и у пользователей сбросится язык/формат времени на дефолтный. Для личного бота это обычно
+некритично; если нужно переживать деплои — на Render можно подключить платный persistent disk
+и примонтировать его на `/app/storage`.
+
+
 
 - **Прогноз (`Forecast`)**: NOAA не публикует отдельный прогноз по Kp-индексу через
   уже подключённые эндпойнты, поэтому `kpExpected` всегда `null`, а «вероятность бури»
