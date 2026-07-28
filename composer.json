@@ -1,0 +1,46 @@
+{
+    "name": "maxim/space-weather-bot",
+    "description": "Production-ready Telegram bot for space weather monitoring",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "guzzlehttp/guzzle": "^7.9",
+        "monolog/monolog": "^3.8",
+        "symfony/cache": "^7.2",
+        "symfony/dotenv": "^7.2"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^11.5",
+        "squizlabs/php_codesniffer": "^3.11"
+    },
+    "autoload": {
+        "psr-4": {
+            "SpaceWeatherBot\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "SpaceWeatherBot\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "start": "php bin/poll.php",
+        "test": "phpunit",
+        "analyse": "phpstan analyse",
+        "lint": "phpcs",
+        "lint:fix": "phpcbf",
+        "check": [
+            "@lint",
+            "@analyse",
+            "@test"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
+}

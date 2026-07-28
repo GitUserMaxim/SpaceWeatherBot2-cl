@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<ruleset name="SpaceWeatherBot">
+    <description>PSR-12 coding standard for SpaceWeatherBot</description>
+    <file>src</file>
+    <file>tests</file>
+    <file>public</file>
+    <rule ref="PSR12"/>
+    <arg value="sp"/>
+    <arg name="colors"/>
+</ruleset>

@@ -1,0 +1,11 @@
+/vendor/
+/.env
+/storage/cache/*
+!/storage/cache/.gitkeep
+/storage/logs/*
+!/storage/logs/.gitkeep
+/storage/users/*
+!/storage/users/.gitkeep
+/.phpunit.cache/
+/phpstan-baseline.neon
+/.phpunit.result.cache
