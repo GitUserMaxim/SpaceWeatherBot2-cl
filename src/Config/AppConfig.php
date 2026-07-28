@@ -28,7 +28,7 @@ final class AppConfig
             logLevel: self::optionalEnv('LOG_LEVEL') ?? 'info',
             githubRepo: self::optionalEnv('GITHUB_REPO') ?? 'https://github.com/yourusername/SpaceWeatherBot',
             developerName: self::optionalEnv('DEVELOPER_NAME') ?? 'Maxim',
-            defaultLocale: self::optionalEnv('DEFAULT_LOCALE') ?? 'en',
+            defaultLocale: self::optionalEnv('DEFAULT_LOCALE') ?? 'ru',
             projectRoot: $projectRoot,
         );
     }
