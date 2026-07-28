@@ -19,13 +19,11 @@ final class SpaceWeatherServiceTest extends TestCase
                 ['time_tag' => '2026-07-27T12:00:00', 'kp_index' => 5.67],
             ])
             ->withSolarWindPlasma([
-                ['time_tag', 'density', 'speed', 'temperature'],
-                ['2026-07-27T11:55:00.000Z', '4.5', '300.0', '50000'],
-                ['2026-07-27T11:58:00.000Z', '4.7', '412.3', '52000'],
+                ['time_tag' => '2026-07-27T11:55:00.000Z', 'proton_speed' => 300.0, 'proton_density' => 4.5, 'proton_temperature' => 50000.0, 'source' => 'DSCOVR', 'active' => false],
+                ['time_tag' => '2026-07-27T11:58:00.000Z', 'proton_speed' => 412.3, 'proton_density' => 4.7, 'proton_temperature' => 52000.0, 'source' => 'DSCOVR', 'active' => true],
             ])
             ->withSolarWindMag([
-                ['time_tag', 'bx_gsm', 'by_gsm', 'bz_gsm', 'lon_gsm', 'lat_gsm', 'bt'],
-                ['2026-07-27T11:58:00.000Z', '1.1', '2.2', '-6.7', '10', '20', '7.8'],
+                ['time_tag' => '2026-07-27T11:58:00.000Z', 'bx_gsm' => 1.1, 'by_gsm' => 2.2, 'bz_gsm' => -6.7, 'phi_gsm' => 10.0, 'theta_gsm' => 20.0, 'bt' => 7.8, 'source' => 'DSCOVR', 'active' => true],
             ])
             ->withEditedEvents([
                 ['type' => 'XRA', 'particulars' => 'C3.4', 'max_datetime' => '2026-07-27T09:00:00', 'reg' => '3700'],
@@ -68,6 +66,39 @@ final class SpaceWeatherServiceTest extends TestCase
         $this->expectExceptionMessage('NOAA is down');
 
         $service->getCurrentConditions();
+    }
+
+    public function testSolarWindPrefersActiveSourceOverNewerInactiveReading(): void
+    {
+        $noaa = (new FakeNoaaClient())
+            ->withSolarWindPlasma([
+                // Newer timestamp, but this satellite is no longer the one SWPC trusts.
+                ['time_tag' => '2026-07-27T12:05:00.000Z', 'proton_speed' => 999.9, 'source' => 'ACE', 'active' => false],
+                // Older timestamp, but flagged active — this is the one that should win.
+                ['time_tag' => '2026-07-27T12:00:00.000Z', 'proton_speed' => 450.0, 'source' => 'DSCOVR', 'active' => true],
+            ])
+            ->withSolarWindMag([
+                ['time_tag' => '2026-07-27T12:05:00.000Z', 'bz_gsm' => -20.0, 'source' => 'ACE', 'active' => false],
+                ['time_tag' => '2026-07-27T12:00:00.000Z', 'bz_gsm' => -3.0, 'source' => 'DSCOVR', 'active' => true],
+            ]);
+
+        $conditions = (new SpaceWeatherService($noaa))->getCurrentConditions();
+
+        self::assertSame(450.0, $conditions->solarWindSpeed);
+        self::assertSame(-3.0, $conditions->imfBz);
+    }
+
+    public function testSolarWindFallsBackToLatestOverallWhenNoRowIsFlaggedActive(): void
+    {
+        $noaa = (new FakeNoaaClient())
+            ->withSolarWindPlasma([
+                ['time_tag' => '2026-07-27T12:00:00.000Z', 'proton_speed' => 400.0],
+                ['time_tag' => '2026-07-27T12:05:00.000Z', 'proton_speed' => 420.0],
+            ]);
+
+        $conditions = (new SpaceWeatherService($noaa))->getCurrentConditions();
+
+        self::assertSame(420.0, $conditions->solarWindSpeed);
     }
 
     public function testSunReportDeduplicatesSortsAndCapsActiveRegionsAtEight(): void

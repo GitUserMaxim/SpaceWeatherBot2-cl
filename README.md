@@ -10,11 +10,3 @@ Telegram-бот, показывающий космическую погоду п
 composer install
 cp .env.example .env
 ```
-
-
-`TELEGRAM_WEBHOOK_SECRET` в `.env` — опционален, но если задан, `public/index.php`
-проверяет заголовок `X-Telegram-Bot-Api-Secret-Token` на каждый запрос.
-
-## Команды бота
-
-- `/start` или `/menu` — показать главное меню.

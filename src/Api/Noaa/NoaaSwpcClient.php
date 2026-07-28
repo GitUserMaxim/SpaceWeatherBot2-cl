@@ -10,7 +10,6 @@ use SpaceWeatherBot\Api\CachedHttpClient;
 final class NoaaSwpcClient implements NoaaClientInterface
 {
     private const string BASE_JSON = 'https://services.swpc.noaa.gov/json';
-    private const string BASE_PRODUCTS = 'https://services.swpc.noaa.gov/products/solar-wind';
 
     public function __construct(
         private readonly CachedHttpClient $http,
@@ -24,12 +23,16 @@ final class NoaaSwpcClient implements NoaaClientInterface
 
     public function getSolarWindPlasma(): array
     {
-        return $this->fetchTabularJson(self::BASE_PRODUCTS . '/plasma-2-hour.json', 120);
+        // Replaces the deprecated /products/solar-wind/plasma-2-hour.json (removed by
+        // NOAA on 2026-04-30, see Service Change Notice 26-21). This is a plain list of
+        // objects now, not the old header-row tabular format.
+        return $this->fetchJson(self::BASE_JSON . '/rtsw/rtsw_wind_1m.json', 60);
     }
 
     public function getSolarWindMag(): array
     {
-        return $this->fetchTabularJson(self::BASE_PRODUCTS . '/mag-2-hour.json', 120);
+        // Replaces the deprecated /products/solar-wind/mag-2-hour.json, same notice as above.
+        return $this->fetchJson(self::BASE_JSON . '/rtsw/rtsw_mag_1m.json', 60);
     }
 
     public function getEditedEvents(): array
@@ -60,23 +63,6 @@ final class NoaaSwpcClient implements NoaaClientInterface
         }
 
         /** @var list<array<string, mixed>> $decoded */
-        return $decoded;
-    }
-
-    /**
-     * @return list<array<int|string, mixed>>
-     */
-
-    private function fetchTabularJson(string $url, int $ttl): array
-    {
-        $payload = $this->http->get($url, $ttl);
-        $decoded = json_decode($payload, true);
-
-        if (! is_array($decoded) || $decoded === []) {
-            throw new ApiException(sprintf('Invalid tabular JSON response from NOAA: %s', $url));
-        }
-
-        /** @var list<array<int|string, mixed>> $decoded */
         return $decoded;
     }
 }

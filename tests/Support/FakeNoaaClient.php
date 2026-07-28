@@ -16,10 +16,10 @@ final class FakeNoaaClient implements NoaaClientInterface
     /** @var list<array<string, mixed>> */
     private array $planetaryKIndex = [];
 
-    /** @var list<array<int|string, mixed>> */
+    /** @var list<array<string, mixed>> */
     private array $solarWindPlasma = [];
 
-    /** @var list<array<int|string, mixed>> */
+    /** @var list<array<string, mixed>> */
     private array $solarWindMag = [];
 
     /** @var list<array<string, mixed>> */
@@ -44,7 +44,7 @@ final class FakeNoaaClient implements NoaaClientInterface
     }
 
     /**
-     * @param list<array<int|string, mixed>> $rows
+     * @param list<array<string, mixed>> $rows
      */
     public function withSolarWindPlasma(array $rows): self
     {
@@ -54,7 +54,7 @@ final class FakeNoaaClient implements NoaaClientInterface
     }
 
     /**
-     * @param list<array<int|string, mixed>> $rows
+     * @param list<array<string, mixed>> $rows
      */
     public function withSolarWindMag(array $rows): self
     {

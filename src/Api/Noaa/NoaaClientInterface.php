@@ -16,14 +16,22 @@ interface NoaaClientInterface
     public function getPlanetaryKIndex(): array;
 
     /**
-     * @return list<array<int|string, mixed>>
+     * RTSW plasma feed (replaces the deprecated tabular plasma-2-hour.json).
+     * Each entry has "time_tag", "proton_speed", "proton_density",
+     * "proton_temperature", plus "source"/"active" metadata.
+     *
+     * @return list<array<string, mixed>>
      *
      * @throws ApiException
      */
     public function getSolarWindPlasma(): array;
 
     /**
-     * @return list<array<int|string, mixed>>
+     * RTSW magnetometer feed (replaces the deprecated tabular mag-2-hour.json).
+     * Each entry has "time_tag", "bx_gsm", "by_gsm", "bz_gsm", "bt",
+     * "phi_gsm", "theta_gsm", plus "source"/"active" metadata.
+     *
+     * @return list<array<string, mixed>>
      *
      * @throws ApiException
      */

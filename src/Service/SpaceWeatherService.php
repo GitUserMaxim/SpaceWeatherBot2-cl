@@ -151,11 +151,11 @@ final class SpaceWeatherService
      */
     private function latestSolarWind(): array
     {
-        $plasma = $this->lastTabularRow($this->noaa->getSolarWindPlasma());
-        $mag = $this->lastTabularRow($this->noaa->getSolarWindMag());
+        $plasma = $this->latestActiveRow($this->noaa->getSolarWindPlasma());
+        $mag = $this->latestActiveRow($this->noaa->getSolarWindMag());
 
         return [
-            'speed' => $this->toFloat($plasma['speed'] ?? null),
+            'speed' => $this->toFloat($plasma['proton_speed'] ?? $plasma['speed'] ?? null),
             'bz' => $this->toFloat($mag['bz_gsm'] ?? $mag['bz'] ?? null),
             'bt' => $this->toFloat($mag['bt'] ?? null),
         ];
@@ -267,27 +267,40 @@ final class SpaceWeatherService
     }
 
     /**
-     * @param list<array<int|string, mixed>> $rows
+     * RTSW feeds can contain rows from more than one satellite; "active" marks
+     * which one SWPC currently trusts. Prefer the latest active row, falling
+     * back to the latest row overall if no row is flagged active.
+     *
+     * @param list<array<string, mixed>> $rows
      *
      * @return array<string, mixed>
      */
-    private function lastTabularRow(array $rows): array
+    private function latestActiveRow(array $rows): array
     {
-        if (count($rows) < 2) {
-            return [];
+        $best = [];
+        $bestTime = null;
+        $fallbackBest = [];
+        $fallbackTime = null;
+
+        foreach ($rows as $row) {
+            if (! is_array($row) || ! isset($row['time_tag'])) {
+                continue;
+            }
+
+            $time = $this->parseTimeTag((string) $row['time_tag']);
+
+            if ($fallbackTime === null || $time > $fallbackTime) {
+                $fallbackBest = $row;
+                $fallbackTime = $time;
+            }
+
+            if (($row['active'] ?? false) === true && ($bestTime === null || $time > $bestTime)) {
+                $best = $row;
+                $bestTime = $time;
+            }
         }
 
-        $header = $rows[0];
-        $last = $rows[array_key_last($rows)];
-
-        if (! is_array($header) || ! is_array($last)) {
-            return [];
-        }
-
-        /** @var array<string, mixed> $combined */
-        $combined = @array_combine(array_map('strval', $header), $last) ?: [];
-
-        return $combined;
+        return $bestTime !== null ? $best : $fallbackBest;
     }
 
     /**
