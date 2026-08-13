@@ -230,10 +230,11 @@ final class SpaceWeatherService
             ];
         }
 
-        // NOAA's "1_day" figure is the forecast FOR tomorrow (issued today), so it lines
-        // up with our "tomorrow" slot. There's no NOAA figure for "today" in this feed,
-        // so day 1's numbers are reused as the closest available stand-in.
-        return array_merge([$result[0]], $result);
+        // NOAA's "date" field on the latest row IS today, so "1_day" is today's
+        // figure, "2_day" is tomorrow's, "3_day" is +2 days'. NOAA doesn't forecast
+        // a 4th day at all, so "+3 days" reuses the 3-day figure as the closest
+        // available stand-in.
+        return array_merge($result, [$result[2]]);
     }
 
     private function stormProbabilityFromKp(float $kp): int

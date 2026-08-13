@@ -141,15 +141,18 @@ final class SpaceWeatherServiceTest extends TestCase
             array_map(static fn ($day) => $day->label, $days),
         );
 
-        // "today" and "tomorrow" both reuse NOAA's Day-1 figures (NOAA has no "today" figure).
+        // NOAA's own "date" field on this row IS today, so Day-1 figures land on
+        // "today", Day-2 on "tomorrow", Day-3 on "+2 days". NOAA has no Day-4 figure
+        // at all, so "+3 days" reuses the Day-3 numbers as the closest stand-in.
         self::assertSame(5, $days[0]->mClassProbability);
         self::assertSame(1, $days[0]->xClassProbability);
-        self::assertSame(5, $days[1]->mClassProbability);
-        self::assertSame(1, $days[1]->xClassProbability);
 
-        // "+2 days" and "+3 days" pick up NOAA's Day-2 / Day-3 figures respectively.
-        self::assertSame(10, $days[2]->mClassProbability);
-        self::assertSame(2, $days[2]->xClassProbability);
+        self::assertSame(10, $days[1]->mClassProbability);
+        self::assertSame(2, $days[1]->xClassProbability);
+
+        self::assertSame(15, $days[2]->mClassProbability);
+        self::assertSame(3, $days[2]->xClassProbability);
+
         self::assertSame(15, $days[3]->mClassProbability);
         self::assertSame(3, $days[3]->xClassProbability);
 
