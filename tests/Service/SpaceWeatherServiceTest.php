@@ -156,10 +156,13 @@ final class SpaceWeatherServiceTest extends TestCase
         self::assertSame(15, $days[3]->mClassProbability);
         self::assertSame(3, $days[3]->xClassProbability);
 
-        // kpExpected is always null: no Kp-forecast NOAA endpoint is wired in yet.
-        foreach ($days as $day) {
-            self::assertNull($day->kpExpected);
-        }
+        // kpExpected comes from the bulletin's per-day 3-hourly max. The default
+        // fixture bulletin covers today/+1/+2 UTC; "+3 days" isn't covered by
+        // NOAA at all, so it reuses the +2 day's figures as the closest stand-in.
+        self::assertSame(4.00, $days[0]->kpExpected);
+        self::assertSame(3.67, $days[1]->kpExpected);
+        self::assertSame(2.67, $days[2]->kpExpected);
+        self::assertSame(2.67, $days[3]->kpExpected);
 
         // Dates are consecutive, starting today, one per day.
         $expectedStart = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
@@ -172,10 +175,61 @@ final class SpaceWeatherServiceTest extends TestCase
         }
     }
 
-    public function testForecastStormProbabilityTiersMatchSummaryKey(): void
+    public function testForecastReadsRealBulletinFormatPrecisely(): void
+    {
+        // A hand-built bulletin using the exact structure NOAA publishes at
+        // services.swpc.noaa.gov/text/3-day-geomag-forecast.txt, anchored to
+        // today/+1/+2 so date-matching lines up regardless of when this runs.
+        $utc = new \DateTimeZone('UTC');
+        $day0 = new \DateTimeImmutable('now', $utc);
+        $day1 = $day0->modify('+1 day');
+        $day2 = $day0->modify('+2 days');
+        $label = static fn (\DateTimeImmutable $d): string => $d->format('M j');
+
+        $bulletin = <<<TXT
+        :Product: Geomagnetic Forecast
+        :Issued: {$day0->format('Y M d')} 2205 UTC
+        #
+        NOAA Geomagnetic Activity Probabilities {$label($day0)}-{$label($day2)}
+        Active                40/40/25
+        Minor storm           30/25/10
+        Moderate storm        05/05/01
+        Strong-Extreme storm  01/01/01
+
+        NOAA Kp index forecast {$label($day0)} - {$label($day2)}
+                     {$label($day0)}    {$label($day1)}    {$label($day2)}
+        00-03UT        3.67      3.67      2.33
+        03-06UT        3.33      3.33      2.00
+        06-09UT        3.00      3.00      2.67
+        09-12UT        2.67      3.00      2.33
+        12-15UT        3.00      2.33      2.33
+        15-18UT        3.33      2.67      2.33
+        18-21UT        3.33      3.00      2.33
+        21-00UT        4.00      3.00      2.67
+        TXT;
+
+        $noaa = (new FakeNoaaClient())
+            ->withPlanetaryKIndex([['time_tag' => '2026-07-27T12:00:00', 'kp_index' => 1.0]])
+            ->withGeomagForecastText($bulletin);
+
+        $days = (new SpaceWeatherService($noaa))->getForecast();
+
+        // Minor + Moderate + Strong-Extreme summed per day column.
+        self::assertSame(36, $days[0]->stormProbability);
+        self::assertSame(31, $days[1]->stormProbability);
+        self::assertSame(12, $days[2]->stormProbability);
+        // "+3 days" isn't in the bulletin at all - nearest available (+2) is reused.
+        self::assertSame(12, $days[3]->stormProbability);
+
+        self::assertSame(4.00, $days[0]->kpExpected);
+        self::assertSame(3.67, $days[1]->kpExpected);
+        self::assertSame(2.67, $days[2]->kpExpected);
+    }
+
+    public function testForecastFallsBackToKpBasedEstimateWhenBulletinDoesNotParse(): void
     {
         $cases = [
-            // kp, expected stormProbability, expected summaryKey
+            // kp, expected fallback stormProbability, expected summaryKey
             [2.0, 5, 'forecast.summary_quiet'],
             [4.5, 25, 'forecast.summary_elevated'],
             [6.0, 50, 'forecast.summary_storm'],
@@ -185,19 +239,36 @@ final class SpaceWeatherServiceTest extends TestCase
         foreach ($cases as [$kp, $expectedProbability, $expectedKey]) {
             $noaa = (new FakeNoaaClient())
                 ->withPlanetaryKIndex([['time_tag' => '2026-07-27T12:00:00', 'kp_index' => $kp]])
-                ->withSolarProbabilities([[]]);
+                ->withSolarProbabilities([[]])
+                // Not a real bulletin - forces the parser to return [] and the
+                // Kp-based fallback to kick in for every day.
+                ->withGeomagForecastText('this is not a NOAA bulletin');
 
-            $service = new SpaceWeatherService($noaa);
-            $days = $service->getForecast();
+            $days = (new SpaceWeatherService($noaa))->getForecast();
 
             foreach ($days as $day) {
                 self::assertSame($expectedProbability, $day->stormProbability, "kp={$kp}");
                 self::assertSame($expectedKey, $day->summaryKey, "kp={$kp}");
+                self::assertNull($day->kpExpected, "kp={$kp}");
             }
         }
     }
 
-    public function testDailySummaryTiersMatchSummaryKey(): void
+    public function testDailySummaryUsesTodaysBulletinEntryWhenAvailable(): void
+    {
+        $noaa = (new FakeNoaaClient())
+            ->withPlanetaryKIndex([['time_tag' => '2026-07-27T12:00:00', 'kp_index' => 1.0]]);
+        // No explicit bulletin set - uses FakeNoaaClient's default fixture,
+        // whose "today" column sums to 30+5+1 = 36% storm probability.
+
+        $summary = (new SpaceWeatherService($noaa))->getDailySummary();
+
+        self::assertSame(1.0, $summary->kpIndex);
+        self::assertSame(36, $summary->stormProbability);
+        self::assertSame('daily.summary_moderate', $summary->summaryKey);
+    }
+
+    public function testDailySummaryFallsBackToKpBasedEstimateWhenBulletinDoesNotParse(): void
     {
         $cases = [
             [2.0, 5, 'daily.summary_quiet'],
@@ -207,10 +278,10 @@ final class SpaceWeatherServiceTest extends TestCase
 
         foreach ($cases as [$kp, $expectedProbability, $expectedKey]) {
             $noaa = (new FakeNoaaClient())
-                ->withPlanetaryKIndex([['time_tag' => '2026-07-27T12:00:00', 'kp_index' => $kp]]);
+                ->withPlanetaryKIndex([['time_tag' => '2026-07-27T12:00:00', 'kp_index' => $kp]])
+                ->withGeomagForecastText('this is not a NOAA bulletin');
 
-            $service = new SpaceWeatherService($noaa);
-            $summary = $service->getDailySummary();
+            $summary = (new SpaceWeatherService($noaa))->getDailySummary();
 
             self::assertSame($kp, $summary->kpIndex);
             self::assertSame($expectedProbability, $summary->stormProbability, "kp={$kp}");

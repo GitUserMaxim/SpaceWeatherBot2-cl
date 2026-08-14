@@ -79,8 +79,10 @@ final class SpaceWeatherService
      */
     public function getForecast(): array
     {
-        $probabilities = $this->forecastProbabilities();
+        $flareProbabilities = $this->forecastProbabilities();
+        $bulletin = $this->parseGeomagBulletin($this->noaa->getGeomagForecastText());
         $currentKp = $this->latestKp()['value'];
+
         $days = [
             ['label' => 'forecast.today', 'offset' => 0],
             ['label' => 'forecast.tomorrow', 'offset' => 1],
@@ -91,21 +93,21 @@ final class SpaceWeatherService
         $result = [];
 
         foreach ($days as $index => $day) {
-            $probability = $probabilities[$index] ?? ['c' => 0, 'm' => 0, 'x' => 0];
-            // Storm probability isn't published by the solar_probabilities feed;
-            // approximated here from the current Kp level as a placeholder.
-            $stormProbability = $this->stormProbabilityFromKp($currentKp);
+            $date = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
+                ->modify(sprintf('+%d days', $day['offset']))
+                ->format('Y-m-d');
+
+            $flare = $flareProbabilities[$index] ?? ['c' => 0, 'm' => 0, 'x' => 0];
+            $entry = $this->findBulletinEntry($bulletin, $date, $currentKp);
 
             $result[] = new ForecastDay(
                 label: $day['label'],
-                date: (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
-                    ->modify(sprintf('+%d days', $day['offset']))
-                    ->format('Y-m-d'),
-                kpExpected: null,
-                stormProbability: $stormProbability,
-                mClassProbability: $probability['m'],
-                xClassProbability: $probability['x'],
-                summaryKey: $this->summaryKeyFor($stormProbability),
+                date: $date,
+                kpExpected: $entry['kpExpected'],
+                stormProbability: $entry['stormProbability'],
+                mClassProbability: $flare['m'],
+                xClassProbability: $flare['x'],
+                summaryKey: $this->summaryKeyFor($entry['stormProbability']),
             );
         }
 
@@ -120,7 +122,9 @@ final class SpaceWeatherService
         $kp = $this->latestKp();
         $wind = $this->latestSolarWind();
         $flare = $this->latestFlare();
-        $stormProbability = $this->stormProbabilityFromKp($kp['value']);
+        $bulletin = $this->parseGeomagBulletin($this->noaa->getGeomagForecastText());
+        $today = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d');
+        $stormProbability = $this->findBulletinEntry($bulletin, $today, $kp['value'])['stormProbability'];
 
         return new DailySummary(
             kpIndex: $kp['value'],
@@ -247,6 +251,135 @@ final class SpaceWeatherService
         };
     }
 
+    /**
+     * Parses NOAA's plain-text 3-Day Geomagnetic Forecast bulletin into a
+     * date-keyed map. Real example of the bulletin structure this expects:
+     *
+     *   NOAA Geomagnetic Activity Probabilities 14 Aug-16 Aug
+     *   Active                40/40/25
+     *   Minor storm           30/25/10
+     *   Moderate storm        05/05/01
+     *   Strong-Extreme storm  01/01/01
+     *
+     *   NOAA Kp index forecast 14 Aug - 16 Aug
+     *                Aug 14    Aug 15    Aug 16
+     *   00-03UT        3.67      3.67      2.33
+     *   ...
+     *
+     * "Storm probability" here is Minor + Moderate + Strong-Extreme summed
+     * (i.e. the chance of Kp reaching 5 or higher at all that day), and
+     * "Kp expected" is the highest of that day's eight 3-hourly values.
+     *
+     * @return array<string, array{stormProbability: int, kpExpected: float}>
+     */
+    private function parseGeomagBulletin(string $text): array
+    {
+        $issuedYear = preg_match('/:Issued:\s*(\d{4})/', $text, $issuedMatch)
+            ? (int) $issuedMatch[1]
+            : (int) (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y');
+
+        // The three day-column labels repeat directly above the Kp table
+        // (e.g. "Aug 14    Aug 15    Aug 16") - the most reliable place to
+        // read exactly which three calendar dates this bulletin covers.
+        if (! preg_match('/NOAA Kp index forecast[^\n]*\n\s*((?:[A-Za-z]{3}\s+\d{1,2}\s*){3})/', $text, $headerMatch)) {
+            return [];
+        }
+
+        preg_match_all('/([A-Za-z]{3})\s+(\d{1,2})/', $headerMatch[1], $dateMatches, PREG_SET_ORDER);
+
+        if (count($dateMatches) !== 3) {
+            return [];
+        }
+
+        $dates = [];
+        $previousMonth = null;
+
+        foreach ($dateMatches as $match) {
+            $year = $issuedYear;
+            $month = (int) (\DateTimeImmutable::createFromFormat('M', $match[1])?->format('n') ?? 0);
+
+            // Handles a bulletin issued in December forecasting into January.
+            if ($previousMonth !== null && $month < $previousMonth) {
+                ++$year;
+            }
+
+            $previousMonth = $month;
+            $dates[] = sprintf('%04d-%02d-%02d', $year, $month, (int) $match[2]);
+        }
+
+        // Sum the three storm-severity tiers into one "any storm" probability
+        // per day-column. "Active" (sub-storm level activity) isn't a storm,
+        // so it's intentionally excluded.
+        $stormTotals = [0, 0, 0];
+
+        foreach (['Minor storm', 'Moderate storm', 'Strong-Extreme storm'] as $tier) {
+            if (preg_match('/^' . preg_quote($tier, '/') . '\s+(\d+)\/(\d+)\/(\d+)/m', $text, $tierMatch)) {
+                $stormTotals[0] += (int) $tierMatch[1];
+                $stormTotals[1] += (int) $tierMatch[2];
+                $stormTotals[2] += (int) $tierMatch[3];
+            }
+        }
+
+        // Eight 3-hourly rows, one column per day - a day's expected Kp is
+        // the highest of its eight values (the peak, which is what actually
+        // matters for storm risk).
+        $kpMax = [0.0, 0.0, 0.0];
+
+        if (preg_match_all('/^\d{2}-\d{2}UT\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/m', $text, $kpRows, PREG_SET_ORDER)) {
+            foreach ($kpRows as $row) {
+                for ($column = 0; $column < 3; ++$column) {
+                    $kpMax[$column] = max($kpMax[$column], (float) $row[$column + 1]);
+                }
+            }
+        }
+
+        $result = [];
+
+        foreach ($dates as $index => $date) {
+            $result[$date] = [
+                'stormProbability' => min(100, $stormTotals[$index]),
+                'kpExpected' => $kpMax[$index],
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, array{stormProbability: int, kpExpected: float}> $bulletin
+     *
+     * @return array{stormProbability: int, kpExpected: ?float}
+     */
+    private function findBulletinEntry(array $bulletin, string $date, float $fallbackKp): array
+    {
+        if (isset($bulletin[$date])) {
+            return $bulletin[$date];
+        }
+
+        if ($bulletin === []) {
+            // Bulletin didn't parse at all (unexpected format change) - fall
+            // back to the old rough Kp-based estimate rather than showing nothing.
+            return ['stormProbability' => $this->stormProbabilityFromKp($fallbackKp), 'kpExpected' => null];
+        }
+
+        // The wanted date is outside NOAA's 3-day window (e.g. "today" queried
+        // before a fresh bulletin has been issued, or the 4th UI day NOAA never
+        // covers at all) - reuse the chronologically nearest day NOAA did forecast.
+        $closest = null;
+        $closestDiff = null;
+
+        foreach ($bulletin as $bulletinDate => $entry) {
+            $diff = abs(strtotime($bulletinDate) - strtotime($date));
+
+            if ($closestDiff === null || $diff < $closestDiff) {
+                $closest = $entry;
+                $closestDiff = $diff;
+            }
+        }
+
+        return $closest ?? ['stormProbability' => $this->stormProbabilityFromKp($fallbackKp), 'kpExpected' => null];
+    }
+
     private function summaryKeyFor(int $stormProbability, bool $forDaily = false): string
     {
         if ($forDaily) {
@@ -257,12 +390,13 @@ final class SpaceWeatherService
             };
         }
 
-        // stormProbabilityFromKp() only ever returns 5, 25, 50 or 80, so a
-        // "10-24" band here would be dead code — keeping the tiers aligned
-        // with the actual reachable values.
+        // Now that stormProbability is a real percentage (not one of a
+        // handful of discrete Kp-derived values), the "10-24" band is
+        // actually reachable, so all four summary tiers apply again.
         return match (true) {
             $stormProbability >= 50 => 'forecast.summary_storm',
             $stormProbability >= 25 => 'forecast.summary_elevated',
+            $stormProbability >= 10 => 'forecast.summary_moderate',
             default => 'forecast.summary_quiet',
         };
     }

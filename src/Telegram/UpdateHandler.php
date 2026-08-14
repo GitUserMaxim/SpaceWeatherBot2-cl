@@ -185,6 +185,11 @@ final class UpdateHandler
 
         foreach ($days as $day) {
             $lines[] = Html::bold($this->translator->get($locale, $day->label));
+
+            if ($day->kpExpected !== null) {
+                $lines[] = Html::line($this->translator->get($locale, 'forecast.kp'), number_format($day->kpExpected, 2));
+            }
+
             $lines[] = Html::line($this->translator->get($locale, 'forecast.storm_prob'), $day->stormProbability . '%');
             $lines[] = Html::line($this->translator->get($locale, 'forecast.m_prob'), $day->mClassProbability . '%');
             $lines[] = Html::line($this->translator->get($locale, 'forecast.x_prob'), $day->xClassProbability . '%');

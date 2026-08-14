@@ -10,6 +10,7 @@ use SpaceWeatherBot\Api\CachedHttpClient;
 final class NoaaSwpcClient implements NoaaClientInterface
 {
     private const string BASE_JSON = 'https://services.swpc.noaa.gov/json';
+    private const string BASE_TEXT = 'https://services.swpc.noaa.gov/text';
 
     public function __construct(
         private readonly CachedHttpClient $http,
@@ -48,6 +49,17 @@ final class NoaaSwpcClient implements NoaaClientInterface
     public function getSolarProbabilities(): array
     {
         return $this->fetchJson(self::BASE_JSON . '/solar_probabilities.json', 3600);
+    }
+
+    public function getGeomagForecastText(): string
+    {
+        $text = $this->http->get(self::BASE_TEXT . '/3-day-geomag-forecast.txt', 3600);
+
+        if (trim($text) === '') {
+            throw new ApiException('Empty geomagnetic forecast bulletin from NOAA.');
+        }
+
+        return $text;
     }
 
     /**

@@ -57,4 +57,16 @@ interface NoaaClientInterface
      * @throws ApiException
      */
     public function getSolarProbabilities(): array;
+
+    /**
+     * Raw text of NOAA's official 3-Day Geomagnetic Forecast bulletin
+     * (https://services.swpc.noaa.gov/text/3-day-geomag-forecast.txt).
+     * Plain text, not JSON - contains observed/predicted Ap, per-day storm
+     * category probabilities, and a table of 3-hourly Kp forecasts for the
+     * next 3 days. Lives under /text/, unlike the WAF-protected /products/
+     * path, so it's actually reachable from a server.
+     *
+     * @throws ApiException
+     */
+    public function getGeomagForecastText(): string;
 }
