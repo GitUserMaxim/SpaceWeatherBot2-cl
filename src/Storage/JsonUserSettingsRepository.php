@@ -39,7 +39,6 @@ final class JsonUserSettingsRepository implements UserSettingsRepositoryInterfac
         return new UserSettings(
             chatId: $chatId,
             locale: Locale::fromString((string) ($data['locale'] ?? $this->defaultLocale->value)),
-            use24HourTime: (bool) ($data['use_24h'] ?? true),
         );
     }
 
@@ -48,7 +47,6 @@ final class JsonUserSettingsRepository implements UserSettingsRepositoryInterfac
         $path = $this->pathFor($settings->chatId);
         $payload = json_encode([
             'locale' => $settings->locale->value,
-            'use_24h' => $settings->use24HourTime,
         ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
 
         if (file_put_contents($path, $payload) === false) {

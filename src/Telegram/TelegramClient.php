@@ -41,38 +41,6 @@ final class TelegramClient
         $this->call('sendMessage', $payload);
     }
 
-    public function setWebhook(string $url, ?string $secretToken = null): void
-    {
-        $payload = ['url' => $url];
-
-        if ($secretToken !== null) {
-            $payload['secret_token'] = $secretToken;
-        }
-
-        $this->call('setWebhook', $payload);
-    }
-
-    public function deleteWebhook(): void
-    {
-        $this->call('deleteWebhook', []);
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    public function getUpdates(int $offset, int $timeout = 30): array
-    {
-        $result = $this->call('getUpdates', [
-            'offset' => $offset,
-            'timeout' => $timeout,
-        ], requestTimeout: $timeout + 10);
-
-        /** @var list<array<string, mixed>> $updates */
-        $updates = is_array($result['result'] ?? null) ? $result['result'] : [];
-
-        return $updates;
-    }
-
     /**
      * @param array<string, mixed> $params
      *

@@ -6,10 +6,8 @@ namespace SpaceWeatherBot\Service;
 
 use SpaceWeatherBot\Api\ApiException;
 use SpaceWeatherBot\Api\Noaa\NoaaClientInterface;
-use SpaceWeatherBot\Dto\DailySummary;
 use SpaceWeatherBot\Dto\ForecastDay;
 use SpaceWeatherBot\Dto\SolarFlare;
-use SpaceWeatherBot\Dto\SpaceWeatherConditions;
 use SpaceWeatherBot\Dto\SunReport;
 use SpaceWeatherBot\Utils\StormLevel;
 
@@ -33,33 +31,17 @@ final class SpaceWeatherService
     /**
      * @throws ApiException
      */
-    public function getCurrentConditions(): SpaceWeatherConditions
+    public function getSunReport(): SunReport
     {
         $kp = $this->latestKp();
         $wind = $this->latestSolarWind();
         $flare = $this->latestFlare();
         $storm = StormLevel::fromKp($kp['value']);
 
-        return new SpaceWeatherConditions(
+        return new SunReport(
             kpIndex: $kp['value'],
             stormLevel: $storm['level'],
             stormLabel: $storm['label'],
-            solarWindSpeed: $wind['speed'],
-            imfBz: $wind['bz'],
-            latestFlare: $flare,
-            updatedAt: $kp['updatedAt'],
-        );
-    }
-
-    /**
-     * @throws ApiException
-     */
-    public function getSunReport(): SunReport
-    {
-        $wind = $this->latestSolarWind();
-        $flare = $this->latestFlare();
-
-        return new SunReport(
             latestFlare: $flare,
             solarWindSpeed: $wind['speed'],
             imfBz: $wind['bz'],
@@ -68,7 +50,7 @@ final class SpaceWeatherService
             // NOAA's currently wired endpoints don't expose coronal hole data;
             // left empty until a dedicated NOAA source is added to NoaaClientInterface.
             coronalHoles: [],
-            updatedAt: new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
+            updatedAt: $kp['updatedAt'],
         );
     }
 
@@ -117,36 +99,14 @@ final class SpaceWeatherService
     /**
      * @throws ApiException
      */
-    public function getDailySummary(): DailySummary
-    {
-        $kp = $this->latestKp();
-        $wind = $this->latestSolarWind();
-        $flare = $this->latestFlare();
-        $bulletin = $this->parseGeomagBulletin($this->noaa->getGeomagForecastText());
-        $today = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d');
-        $stormProbability = $this->findBulletinEntry($bulletin, $today, $kp['value'])['stormProbability'];
-
-        return new DailySummary(
-            kpIndex: $kp['value'],
-            solarWindSpeed: $wind['speed'],
-            latestFlare: $flare,
-            stormProbability: $stormProbability,
-            summaryKey: $this->summaryKeyFor($stormProbability, forDaily: true),
-            generatedAt: new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
-        );
-    }
-
-    /**
-     * @return array{value: float, updatedAt: \DateTimeImmutable}
-     */
-    /**
-     * @throws ApiException
-     */
     public function getCurrentKp(): float
     {
         return $this->latestKp()['value'];
     }
 
+    /**
+     * @return array{value: float, updatedAt: \DateTimeImmutable}
+     */
     private function latestKp(): array
     {
         $rows = $this->noaa->getPlanetaryKIndex();
@@ -388,19 +348,8 @@ final class SpaceWeatherService
         return $closest ?? ['stormProbability' => $this->stormProbabilityFromKp($fallbackKp), 'kpExpected' => null];
     }
 
-    private function summaryKeyFor(int $stormProbability, bool $forDaily = false): string
+    private function summaryKeyFor(int $stormProbability): string
     {
-        if ($forDaily) {
-            return match (true) {
-                $stormProbability >= 50 => 'daily.summary_storm',
-                $stormProbability >= 25 => 'daily.summary_moderate',
-                default => 'daily.summary_quiet',
-            };
-        }
-
-        // Now that stormProbability is a real percentage (not one of a
-        // handful of discrete Kp-derived values), the "10-24" band is
-        // actually reachable, so all four summary tiers apply again.
         return match (true) {
             $stormProbability >= 50 => 'forecast.summary_storm',
             $stormProbability >= 25 => 'forecast.summary_elevated',

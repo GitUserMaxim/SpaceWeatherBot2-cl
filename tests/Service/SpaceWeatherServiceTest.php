@@ -11,7 +11,7 @@ use SpaceWeatherBot\Tests\Support\FakeNoaaClient;
 
 final class SpaceWeatherServiceTest extends TestCase
 {
-    public function testCurrentConditionsUsesLatestRowsAndParsesFields(): void
+    public function testSunReportUsesLatestRowsAndParsesFields(): void
     {
         $noaa = (new FakeNoaaClient())
             ->withPlanetaryKIndex([
@@ -32,32 +32,33 @@ final class SpaceWeatherServiceTest extends TestCase
             ]);
 
         $service = new SpaceWeatherService($noaa);
-        $conditions = $service->getCurrentConditions();
+        $sun = $service->getSunReport();
 
-        self::assertSame(5.67, $conditions->kpIndex);
-        self::assertSame('G1', $conditions->stormLevel);
-        self::assertSame('Minor', $conditions->stormLabel);
-        self::assertSame(412.3, $conditions->solarWindSpeed);
-        self::assertSame(-6.7, $conditions->imfBz);
-        self::assertNotNull($conditions->latestFlare);
-        self::assertSame('M2.1', $conditions->latestFlare->class);
-        self::assertSame('3701', $conditions->latestFlare->region);
-        self::assertSame('2026-07-27T12:00:00+00:00', $conditions->updatedAt->format('Y-m-d\TH:i:sP'));
+        self::assertSame(5.67, $sun->kpIndex);
+        self::assertSame('G1', $sun->stormLevel);
+        self::assertSame('Minor', $sun->stormLabel);
+        self::assertSame(412.3, $sun->solarWindSpeed);
+        self::assertSame(-6.7, $sun->imfBz);
+        self::assertSame(7.8, $sun->imfBt);
+        self::assertNotNull($sun->latestFlare);
+        self::assertSame('M2.1', $sun->latestFlare->class);
+        self::assertSame('3701', $sun->latestFlare->region);
+        self::assertSame('2026-07-27T12:00:00+00:00', $sun->updatedAt->format('Y-m-d\TH:i:sP'));
     }
 
-    public function testCurrentConditionsFallsBackToZeroKpWhenFeedIsEmpty(): void
+    public function testSunReportFallsBackToZeroKpWhenFeedIsEmpty(): void
     {
         $service = new SpaceWeatherService(new FakeNoaaClient());
 
-        $conditions = $service->getCurrentConditions();
+        $sun = $service->getSunReport();
 
-        self::assertSame(0.0, $conditions->kpIndex);
-        self::assertSame('G0', $conditions->stormLevel);
-        self::assertNull($conditions->solarWindSpeed);
-        self::assertNull($conditions->latestFlare);
+        self::assertSame(0.0, $sun->kpIndex);
+        self::assertSame('G0', $sun->stormLevel);
+        self::assertNull($sun->solarWindSpeed);
+        self::assertNull($sun->latestFlare);
     }
 
-    public function testCurrentConditionsPropagatesApiException(): void
+    public function testSunReportPropagatesApiException(): void
     {
         $noaa = (new FakeNoaaClient())->failingWith('NOAA is down');
         $service = new SpaceWeatherService($noaa);
@@ -65,7 +66,7 @@ final class SpaceWeatherServiceTest extends TestCase
         $this->expectException(ApiException::class);
         $this->expectExceptionMessage('NOAA is down');
 
-        $service->getCurrentConditions();
+        $service->getSunReport();
     }
 
     public function testSolarWindPrefersActiveSourceOverNewerInactiveReading(): void
@@ -82,10 +83,10 @@ final class SpaceWeatherServiceTest extends TestCase
                 ['time_tag' => '2026-07-27T12:00:00.000Z', 'bz_gsm' => -3.0, 'source' => 'DSCOVR', 'active' => true],
             ]);
 
-        $conditions = (new SpaceWeatherService($noaa))->getCurrentConditions();
+        $sun = (new SpaceWeatherService($noaa))->getSunReport();
 
-        self::assertSame(450.0, $conditions->solarWindSpeed);
-        self::assertSame(-3.0, $conditions->imfBz);
+        self::assertSame(450.0, $sun->solarWindSpeed);
+        self::assertSame(-3.0, $sun->imfBz);
     }
 
     public function testSolarWindFallsBackToLatestOverallWhenNoRowIsFlaggedActive(): void
@@ -96,9 +97,9 @@ final class SpaceWeatherServiceTest extends TestCase
                 ['time_tag' => '2026-07-27T12:05:00.000Z', 'proton_speed' => 420.0],
             ]);
 
-        $conditions = (new SpaceWeatherService($noaa))->getCurrentConditions();
+        $sun = (new SpaceWeatherService($noaa))->getSunReport();
 
-        self::assertSame(420.0, $conditions->solarWindSpeed);
+        self::assertSame(420.0, $sun->solarWindSpeed);
     }
 
     public function testSunReportDeduplicatesSortsAndCapsActiveRegionsAtEight(): void
@@ -120,6 +121,14 @@ final class SpaceWeatherServiceTest extends TestCase
             $sun->activeRegions,
         );
         self::assertSame([], $sun->coronalHoles);
+    }
+
+    public function testGetCurrentKpReturnsLatestValue(): void
+    {
+        $noaa = (new FakeNoaaClient())
+            ->withPlanetaryKIndex([['time_tag' => '2026-07-27T12:00:00', 'kp_index' => 4.33]]);
+
+        self::assertSame(4.33, (new SpaceWeatherService($noaa))->getCurrentKp());
     }
 
     public function testForecastMapsNoaaDayOffsetsOntoTodayTomorrowPlus2Plus3(): void
@@ -251,41 +260,6 @@ final class SpaceWeatherServiceTest extends TestCase
                 self::assertSame($expectedKey, $day->summaryKey, "kp={$kp}");
                 self::assertNull($day->kpExpected, "kp={$kp}");
             }
-        }
-    }
-
-    public function testDailySummaryUsesTodaysBulletinEntryWhenAvailable(): void
-    {
-        $noaa = (new FakeNoaaClient())
-            ->withPlanetaryKIndex([['time_tag' => '2026-07-27T12:00:00', 'kp_index' => 1.0]]);
-        // No explicit bulletin set - uses FakeNoaaClient's default fixture,
-        // whose "today" column sums to 30+5+1 = 36% storm probability.
-
-        $summary = (new SpaceWeatherService($noaa))->getDailySummary();
-
-        self::assertSame(1.0, $summary->kpIndex);
-        self::assertSame(36, $summary->stormProbability);
-        self::assertSame('daily.summary_moderate', $summary->summaryKey);
-    }
-
-    public function testDailySummaryFallsBackToKpBasedEstimateWhenBulletinDoesNotParse(): void
-    {
-        $cases = [
-            [2.0, 5, 'daily.summary_quiet'],
-            [4.5, 25, 'daily.summary_moderate'],
-            [6.0, 50, 'daily.summary_storm'],
-        ];
-
-        foreach ($cases as [$kp, $expectedProbability, $expectedKey]) {
-            $noaa = (new FakeNoaaClient())
-                ->withPlanetaryKIndex([['time_tag' => '2026-07-27T12:00:00', 'kp_index' => $kp]])
-                ->withGeomagForecastText('this is not a NOAA bulletin');
-
-            $summary = (new SpaceWeatherService($noaa))->getDailySummary();
-
-            self::assertSame($kp, $summary->kpIndex);
-            self::assertSame($expectedProbability, $summary->stormProbability, "kp={$kp}");
-            self::assertSame($expectedKey, $summary->summaryKey, "kp={$kp}");
         }
     }
 }

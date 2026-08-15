@@ -20,18 +20,16 @@ final class KeyboardFactory
     public static function mainMenu(Translator $t, Locale $locale): array
     {
         return self::keyboard([
-            [$t->get($locale, MenuAction::CurrentConditions->translationKey()), $t->get($locale, MenuAction::Weather->translationKey())],
-            [$t->get($locale, MenuAction::Forecast->translationKey()), $t->get($locale, MenuAction::Sun->translationKey())],
-            [$t->get($locale, MenuAction::DailySummary->translationKey()), $t->get($locale, MenuAction::Glossary->translationKey())],
-            [$t->get($locale, MenuAction::Language->translationKey()), $t->get($locale, MenuAction::Settings->translationKey())],
-            [$t->get($locale, MenuAction::About->translationKey())],
+            [$t->get($locale, MenuAction::Weather->translationKey()), $t->get($locale, MenuAction::Sun->translationKey())],
+            [$t->get($locale, MenuAction::Forecast->translationKey()), $t->get($locale, MenuAction::Glossary->translationKey())],
+            [$t->get($locale, MenuAction::Language->translationKey()), $t->get($locale, MenuAction::About->translationKey())],
         ]);
     }
 
     /**
      * @return array<string, mixed>
      */
-    public static function currentConditionsMenu(Translator $t, Locale $locale): array
+    public static function sunMenu(Translator $t, Locale $locale): array
     {
         return self::keyboard([
             [$t->get($locale, MenuAction::Explain->translationKey())],
@@ -72,17 +70,6 @@ final class KeyboardFactory
     {
         return self::keyboard([
             [$t->get($locale, MenuAction::SetLanguageEn->translationKey()), $t->get($locale, MenuAction::SetLanguageRu->translationKey())],
-            [$t->get($locale, MenuAction::Back->translationKey())],
-        ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public static function settingsMenu(Translator $t, Locale $locale): array
-    {
-        return self::keyboard([
-            [$t->get($locale, MenuAction::SetTime24h->translationKey()), $t->get($locale, MenuAction::SetTime12h->translationKey())],
             [$t->get($locale, MenuAction::Back->translationKey())],
         ]);
     }

@@ -50,7 +50,7 @@ final class UpdateHandler
         }
 
         $text = trim((string) ($message['text'] ?? ''));
-        $settings = $this->settingsRepository->find($chatId) ?? new UserSettings($chatId, $this->defaultLocale, true);
+        $settings = $this->settingsRepository->find($chatId) ?? new UserSettings($chatId, $this->defaultLocale);
         $locale = $settings->locale;
 
         if ($text === '/start' || $text === '/menu') {
@@ -77,11 +77,9 @@ final class UpdateHandler
         }
 
         match ($action) {
-            MenuAction::CurrentConditions => $this->sendCurrentConditions($chatId, $settings),
+            MenuAction::Sun => $this->sendSun($chatId, $locale),
             MenuAction::Forecast => $this->sendForecast($chatId, $locale),
-            MenuAction::Sun => $this->sendSun($chatId, $locale, $settings),
-            MenuAction::DailySummary => $this->sendDailySummary($chatId, $locale),
-            MenuAction::Weather => $this->sendWeather($chatId, $locale, $settings),
+            MenuAction::Weather => $this->sendWeather($chatId, $locale),
             MenuAction::Glossary => $this->reply(
                 $chatId,
                 $this->translator->get($locale, 'glossary.choose'),
@@ -92,7 +90,6 @@ final class UpdateHandler
                 $this->translator->get($locale, 'language.choose'),
                 KeyboardFactory::languageMenu($this->translator, $locale),
             ),
-            MenuAction::Settings => $this->sendSettings($chatId, $locale, $settings),
             MenuAction::About => $this->sendAbout($chatId, $locale),
             MenuAction::Back => $this->reply(
                 $chatId,
@@ -102,8 +99,6 @@ final class UpdateHandler
             MenuAction::Explain => $this->sendExplain($chatId, $locale),
             MenuAction::SetLanguageEn => $this->changeLocale($chatId, $settings, Locale::En),
             MenuAction::SetLanguageRu => $this->changeLocale($chatId, $settings, Locale::Ru),
-            MenuAction::SetTime24h => $this->changeTimeFormat($chatId, $locale, $settings, true),
-            MenuAction::SetTime12h => $this->changeTimeFormat($chatId, $locale, $settings, false),
             MenuAction::GlossaryKp,
             MenuAction::GlossarySolarWind,
             MenuAction::GlossaryImfBz,
@@ -116,14 +111,12 @@ final class UpdateHandler
         };
     }
 
-    private function sendCurrentConditions(int $chatId, UserSettings $settings): void
+    private function sendSun(int $chatId, Locale $locale): void
     {
-        $locale = $settings->locale;
-
         try {
-            $conditions = $this->weatherService->getCurrentConditions();
+            $sun = $this->weatherService->getSunReport();
         } catch (ApiException $exception) {
-            $this->logger->warning('Failed to load current conditions', ['message' => $exception->getMessage()]);
+            $this->logger->warning('Failed to load sun report', ['message' => $exception->getMessage()]);
             $this->reply(
                 $chatId,
                 $this->translator->get($locale, 'app.data_unavailable'),
@@ -135,38 +128,46 @@ final class UpdateHandler
 
         $tz = new \DateTimeZone('UTC');
         $lines = [
-            Html::bold($this->translator->get($locale, 'conditions.title')),
+            Html::bold($this->translator->get($locale, 'sun.title')),
             '',
-            Html::line($this->translator->get($locale, 'conditions.kp'), number_format($conditions->kpIndex, 2)),
+            Html::line($this->translator->get($locale, 'sun.kp'), number_format($sun->kpIndex, 2)),
             Html::line(
-                $this->translator->get($locale, 'conditions.storm_level'),
-                $conditions->stormLevel . ' — ' . $this->translator->get($locale, 'storm_labels.' . $conditions->stormLevel),
+                $this->translator->get($locale, 'sun.storm_level'),
+                $sun->stormLevel . ' — ' . $this->translator->get($locale, 'storm_labels.' . $sun->stormLevel),
             ),
             Html::line(
-                $this->translator->get($locale, 'conditions.solar_wind'),
-                $conditions->solarWindSpeed !== null
-                    ? number_format($conditions->solarWindSpeed, 0) . ' km/s'
-                    : $this->translator->get($locale, 'conditions.na'),
+                $this->translator->get($locale, 'sun.latest_flare'),
+                $sun->latestFlare !== null
+                    ? $sun->latestFlare->class . ' (' . TimeFormatter::formatForUser($sun->latestFlare->peakTime, true, $tz) . ' UTC)'
+                    : $this->translator->get($locale, 'sun.none'),
             ),
             Html::line(
-                $this->translator->get($locale, 'conditions.imf_bz'),
-                $conditions->imfBz !== null
-                    ? number_format($conditions->imfBz, 1) . ' nT'
-                    : $this->translator->get($locale, 'conditions.na'),
+                $this->translator->get($locale, 'sun.solar_wind'),
+                $sun->solarWindSpeed !== null ? number_format($sun->solarWindSpeed, 0) . ' km/s' : $this->translator->get($locale, 'sun.unavailable'),
             ),
             Html::line(
-                $this->translator->get($locale, 'conditions.latest_flare'),
-                $conditions->latestFlare !== null
-                    ? $conditions->latestFlare->class . ' (' . TimeFormatter::formatForUser($conditions->latestFlare->peakTime, $settings->use24HourTime, $tz) . ' UTC)'
-                    : $this->translator->get($locale, 'conditions.none'),
+                $this->translator->get($locale, 'sun.imf_bz'),
+                $sun->imfBz !== null ? number_format($sun->imfBz, 1) . ' nT' : $this->translator->get($locale, 'sun.unavailable'),
             ),
             Html::line(
-                $this->translator->get($locale, 'conditions.updated'),
-                TimeFormatter::formatForUser($conditions->updatedAt, $settings->use24HourTime, $tz) . ' UTC',
+                $this->translator->get($locale, 'sun.imf_bt'),
+                $sun->imfBt !== null ? number_format($sun->imfBt, 1) . ' nT' : $this->translator->get($locale, 'sun.unavailable'),
+            ),
+            Html::line(
+                $this->translator->get($locale, 'sun.active_regions'),
+                $sun->activeRegions !== [] ? implode(', ', $sun->activeRegions) : $this->translator->get($locale, 'sun.none'),
+            ),
+            Html::line(
+                $this->translator->get($locale, 'sun.coronal_holes'),
+                $sun->coronalHoles !== [] ? implode(', ', $sun->coronalHoles) : $this->translator->get($locale, 'sun.none'),
+            ),
+            Html::line(
+                $this->translator->get($locale, 'sun.updated'),
+                TimeFormatter::formatForUser($sun->updatedAt, true, $tz) . ' UTC',
             ),
         ];
 
-        $this->reply($chatId, implode("\n", $lines), KeyboardFactory::currentConditionsMenu($this->translator, $locale));
+        $this->reply($chatId, implode("\n", $lines), KeyboardFactory::sunMenu($this->translator, $locale));
     }
 
     private function sendForecast(int $chatId, Locale $locale): void
@@ -203,92 +204,7 @@ final class UpdateHandler
         $this->reply($chatId, implode("\n", $lines), KeyboardFactory::backOnly($this->translator, $locale));
     }
 
-    private function sendSun(int $chatId, Locale $locale, UserSettings $settings): void
-    {
-        try {
-            $sun = $this->weatherService->getSunReport();
-        } catch (ApiException $exception) {
-            $this->logger->warning('Failed to load sun report', ['message' => $exception->getMessage()]);
-            $this->reply(
-                $chatId,
-                $this->translator->get($locale, 'app.data_unavailable'),
-                KeyboardFactory::mainMenu($this->translator, $locale),
-            );
-
-            return;
-        }
-
-        $tz = new \DateTimeZone('UTC');
-        $lines = [
-            Html::bold($this->translator->get($locale, 'sun.title')),
-            '',
-            Html::line(
-                $this->translator->get($locale, 'sun.latest_flare'),
-                $sun->latestFlare !== null
-                    ? $sun->latestFlare->class . ' (' . TimeFormatter::formatForUser($sun->latestFlare->peakTime, $settings->use24HourTime, $tz) . ' UTC)'
-                    : $this->translator->get($locale, 'sun.none'),
-            ),
-            Html::line(
-                $this->translator->get($locale, 'sun.solar_wind'),
-                $sun->solarWindSpeed !== null ? number_format($sun->solarWindSpeed, 0) . ' km/s' : $this->translator->get($locale, 'sun.unavailable'),
-            ),
-            Html::line(
-                $this->translator->get($locale, 'sun.imf_bz'),
-                $sun->imfBz !== null ? number_format($sun->imfBz, 1) . ' nT' : $this->translator->get($locale, 'sun.unavailable'),
-            ),
-            Html::line(
-                $this->translator->get($locale, 'sun.imf_bt'),
-                $sun->imfBt !== null ? number_format($sun->imfBt, 1) . ' nT' : $this->translator->get($locale, 'sun.unavailable'),
-            ),
-            Html::line(
-                $this->translator->get($locale, 'sun.active_regions'),
-                $sun->activeRegions !== [] ? implode(', ', $sun->activeRegions) : $this->translator->get($locale, 'sun.none'),
-            ),
-            Html::line(
-                $this->translator->get($locale, 'sun.coronal_holes'),
-                $sun->coronalHoles !== [] ? implode(', ', $sun->coronalHoles) : $this->translator->get($locale, 'sun.none'),
-            ),
-        ];
-
-        $this->reply($chatId, implode("\n", $lines), KeyboardFactory::backOnly($this->translator, $locale));
-    }
-
-    private function sendDailySummary(int $chatId, Locale $locale): void
-    {
-        try {
-            $summary = $this->weatherService->getDailySummary();
-        } catch (ApiException $exception) {
-            $this->logger->warning('Failed to load daily summary', ['message' => $exception->getMessage()]);
-            $this->reply(
-                $chatId,
-                $this->translator->get($locale, 'app.data_unavailable'),
-                KeyboardFactory::mainMenu($this->translator, $locale),
-            );
-
-            return;
-        }
-
-        $lines = [
-            Html::bold($this->translator->get($locale, 'daily.title')),
-            '',
-            Html::line($this->translator->get($locale, 'daily.kp'), number_format($summary->kpIndex, 2)),
-            Html::line(
-                $this->translator->get($locale, 'daily.solar_wind'),
-                $summary->solarWindSpeed !== null ? number_format($summary->solarWindSpeed, 0) . ' km/s' : $this->translator->get($locale, 'conditions.na'),
-            ),
-            Html::line(
-                $this->translator->get($locale, 'daily.latest_flare'),
-                $summary->latestFlare?->class ?? $this->translator->get($locale, 'conditions.none'),
-            ),
-            Html::line($this->translator->get($locale, 'daily.storm_probability'), $summary->stormProbability . '%'),
-            '',
-            Html::bold($this->translator->get($locale, 'daily.summary')) . ': ' . $this->translator->get($locale, $summary->summaryKey),
-        ];
-
-        $this->reply($chatId, implode("\n", $lines), KeyboardFactory::backOnly($this->translator, $locale));
-    }
-
-    private function sendWeather(int $chatId, Locale $locale, UserSettings $settings): void
+    private function sendWeather(int $chatId, Locale $locale): void
     {
         $readings = $this->groundWeatherService->getComparison(
             $this->config->defaultWeatherLat,
@@ -316,23 +232,23 @@ final class UpdateHandler
             $lines[] = Html::bold($reading->sourceName);
             $lines[] = Html::line(
                 $this->translator->get($locale, 'weather.temperature'),
-                $reading->temperatureCelsius !== null ? number_format($reading->temperatureCelsius, 1) . ' °C' : $this->translator->get($locale, 'conditions.na'),
+                $reading->temperatureCelsius !== null ? number_format($reading->temperatureCelsius, 1) . ' °C' : $this->translator->get($locale, 'app.na'),
             );
             $lines[] = Html::line(
                 $this->translator->get($locale, 'weather.humidity'),
-                $reading->humidityPercent !== null ? $reading->humidityPercent . '%' : $this->translator->get($locale, 'conditions.na'),
+                $reading->humidityPercent !== null ? $reading->humidityPercent . '%' : $this->translator->get($locale, 'app.na'),
             );
             $lines[] = Html::line(
                 $this->translator->get($locale, 'weather.wind'),
-                $reading->windSpeedMs !== null ? number_format($reading->windSpeedMs, 1) . ' m/s' : $this->translator->get($locale, 'conditions.na'),
+                $reading->windSpeedMs !== null ? number_format($reading->windSpeedMs, 1) . ' m/s' : $this->translator->get($locale, 'app.na'),
             );
             $lines[] = Html::line(
                 $this->translator->get($locale, 'weather.pressure'),
-                $reading->pressureHpa !== null ? number_format($reading->pressureHpa, 0) . ' hPa' : $this->translator->get($locale, 'conditions.na'),
+                $reading->pressureHpa !== null ? number_format($reading->pressureHpa, 0) . ' hPa' : $this->translator->get($locale, 'app.na'),
             );
             $lines[] = Html::line(
                 $this->translator->get($locale, 'weather.observed'),
-                TimeFormatter::formatForUser($reading->observedAt, $settings->use24HourTime, $tz) . ' UTC',
+                TimeFormatter::formatForUser($reading->observedAt, true, $tz) . ' UTC',
             );
             $lines[] = '';
         }
@@ -344,21 +260,6 @@ final class UpdateHandler
         }
 
         $this->reply($chatId, implode("\n", $lines), KeyboardFactory::mainMenu($this->translator, $locale));
-    }
-
-    private function sendSettings(int $chatId, Locale $locale, UserSettings $settings): void
-    {
-        $currentFormat = $settings->use24HourTime
-            ? $this->translator->get($locale, 'settings.time_24h')
-            : $this->translator->get($locale, 'settings.time_12h');
-
-        $lines = [
-            Html::bold($this->translator->get($locale, 'settings.title')),
-            '',
-            Html::line($this->translator->get($locale, 'settings.time_format'), $currentFormat),
-        ];
-
-        $this->reply($chatId, implode("\n", $lines), KeyboardFactory::settingsMenu($this->translator, $locale));
     }
 
     private function sendAbout(int $chatId, Locale $locale): void
@@ -381,9 +282,9 @@ final class UpdateHandler
     private function sendExplain(int $chatId, Locale $locale): void
     {
         try {
-            $conditions = $this->weatherService->getCurrentConditions();
+            $sun = $this->weatherService->getSunReport();
         } catch (ApiException $exception) {
-            $this->logger->warning('Failed to load conditions for explain screen', ['message' => $exception->getMessage()]);
+            $this->logger->warning('Failed to load sun report for explain screen', ['message' => $exception->getMessage()]);
             $this->reply(
                 $chatId,
                 $this->translator->get($locale, 'app.data_unavailable'),
@@ -393,7 +294,7 @@ final class UpdateHandler
             return;
         }
 
-        $kp = $conditions->kpIndex;
+        $kp = $sun->kpIndex;
         $keys = match (true) {
             $kp >= 7 => ['storm', 'storm_satellite', 'storm_gps', 'storm_radio', 'storm_power', 'storm_sensitive'],
             $kp >= 5 => ['high', 'satellite', 'gps_impact', 'radio_impact', 'power_grid', 'sensitive'],
@@ -434,18 +335,6 @@ final class UpdateHandler
             $chatId,
             $this->translator->get($newLocale, 'language.changed'),
             KeyboardFactory::mainMenu($this->translator, $newLocale),
-        );
-    }
-
-    private function changeTimeFormat(int $chatId, Locale $locale, UserSettings $settings, bool $use24h): void
-    {
-        $updated = $settings->withUse24HourTime($use24h);
-        $this->settingsRepository->save($updated);
-
-        $this->reply(
-            $chatId,
-            $this->translator->get($locale, 'settings.time_changed'),
-            KeyboardFactory::mainMenu($this->translator, $locale),
         );
     }
 

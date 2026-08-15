@@ -11,6 +11,9 @@ final readonly class SunReport
      * @param list<string> $coronalHoles
      */
     public function __construct(
+        public float $kpIndex,
+        public string $stormLevel,
+        public string $stormLabel,
         public ?SolarFlare $latestFlare,
         public ?float $solarWindSpeed,
         public ?float $imfBz,

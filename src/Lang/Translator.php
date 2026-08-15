@@ -35,13 +35,11 @@ final class Translator
     public function allMenuLabels(Locale $locale): array
     {
         return [
-            $this->get($locale, 'menu.current_conditions'),
-            $this->get($locale, 'menu.forecast'),
+            $this->get($locale, 'menu.weather'),
             $this->get($locale, 'menu.sun'),
+            $this->get($locale, 'menu.forecast'),
             $this->get($locale, 'menu.glossary'),
-            $this->get($locale, 'menu.daily_summary'),
             $this->get($locale, 'menu.language'),
-            $this->get($locale, 'menu.settings'),
             $this->get($locale, 'menu.about'),
         ];
     }
@@ -63,8 +61,7 @@ final class Translator
         }
 
         return $this->resolveGlossaryAction($locale, $text)
-            ?? $this->resolveLanguageAction($locale, $text)
-            ?? $this->resolveSettingsAction($locale, $text);
+            ?? $this->resolveLanguageAction($locale, $text);
     }
 
     private function resolveGlossaryAction(Locale $locale, string $text): ?MenuAction
@@ -98,19 +95,6 @@ final class Translator
 
         if ($text === $this->get($locale, 'language.ru')) {
             return MenuAction::SetLanguageRu;
-        }
-
-        return null;
-    }
-
-    private function resolveSettingsAction(Locale $locale, string $text): ?MenuAction
-    {
-        if ($text === $this->get($locale, 'settings.time_24h')) {
-            return MenuAction::SetTime24h;
-        }
-
-        if ($text === $this->get($locale, 'settings.time_12h')) {
-            return MenuAction::SetTime12h;
         }
 
         return null;

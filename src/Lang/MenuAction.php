@@ -6,14 +6,11 @@ namespace SpaceWeatherBot\Lang;
 
 enum MenuAction
 {
-    case CurrentConditions;
-    case Forecast;
     case Sun;
-    case Glossary;
-    case DailySummary;
+    case Forecast;
     case Weather;
+    case Glossary;
     case Language;
-    case Settings;
     case About;
     case Back;
     case Explain;
@@ -31,23 +28,17 @@ enum MenuAction
     case SetLanguageEn;
     case SetLanguageRu;
 
-    case SetTime24h;
-    case SetTime12h;
-
     /**
      * Translation key whose rendered value is the button label for this action.
      */
     public function translationKey(): string
     {
         return match ($this) {
-            self::CurrentConditions => 'menu.current_conditions',
-            self::Forecast => 'menu.forecast',
             self::Sun => 'menu.sun',
-            self::Glossary => 'menu.glossary',
-            self::DailySummary => 'menu.daily_summary',
+            self::Forecast => 'menu.forecast',
             self::Weather => 'menu.weather',
+            self::Glossary => 'menu.glossary',
             self::Language => 'menu.language',
-            self::Settings => 'menu.settings',
             self::About => 'menu.about',
             self::Back => 'app.back',
             self::Explain => 'menu.explain',
@@ -62,8 +53,6 @@ enum MenuAction
             self::GlossaryXClassFlare => 'glossary.x_class_flare',
             self::SetLanguageEn => 'language.en',
             self::SetLanguageRu => 'language.ru',
-            self::SetTime24h => 'settings.time_24h',
-            self::SetTime12h => 'settings.time_12h',
         };
     }
 
