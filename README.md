@@ -49,6 +49,28 @@ curl -F "url=https://your-domain.example.com/index.php" \
 - `/start` или `/menu` — показать главное меню.
 - Дальше — обычная навигация кнопками (reply-клавиатура), без inline-кнопок.
 
+## Раздел «Погода»
+
+В отличие от остальных разделов (это космическая погода от NOAA), раздел «🌦 Погода» —
+обычная приземная погода для заданной точки, из нескольких источников для сверки:
+
+- **Open-Meteo** — всегда включён, ключ API не нужен.
+- **OpenWeatherMap** — включается, если задан `OPENWEATHERMAP_API_KEY` в `.env`
+  (бесплатный ключ: https://openweathermap.org/api). Если ключа нет, источник просто
+  не показывается — без ошибок.
+
+Если один источник недоступен, а другой отвечает — бот покажет то, что получилось;
+полностью недоступным раздел становится, только если упали вообще все источники.
+
+Локация по умолчанию — Останкино (практический центр Северо-Восточного округа Москвы),
+задаётся в `.env`:
+
+```
+WEATHER_LAT=55.8197
+WEATHER_LON=37.6117
+WEATHER_LOCATION_NAME=Moscow, NE (Ostankino)
+```
+
 ## Деплой на Render
 
 Render — обычный Web Service, слушающий `$PORT`, поэтому бот там работает через **webhook**,
@@ -64,6 +86,7 @@ Render — обычный Web Service, слушающий `$PORT`, поэтом�
    - `APP_ENV=prod`
    - `LOG_LEVEL=info`
    - `GITHUB_REPO`, `DEVELOPER_NAME`, `DEFAULT_LOCALE` — по желанию
+   - `WEATHER_LAT`, `WEATHER_LON`, `WEATHER_LOCATION_NAME`, `OPENWEATHERMAP_API_KEY` — по желанию (см. раздел «Погода» выше)
 4. После деплоя Render даст URL вида `https://space-weather-bot.onrender.com`.
    Один раз зарегистрировать вебхук:
 

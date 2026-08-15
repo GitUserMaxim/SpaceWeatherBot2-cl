@@ -20,7 +20,7 @@ final class KeyboardFactory
     public static function mainMenu(Translator $t, Locale $locale): array
     {
         return self::keyboard([
-            [$t->get($locale, MenuAction::CurrentConditions->translationKey())],
+            [$t->get($locale, MenuAction::CurrentConditions->translationKey()), $t->get($locale, MenuAction::Weather->translationKey())],
             [$t->get($locale, MenuAction::Forecast->translationKey()), $t->get($locale, MenuAction::Sun->translationKey())],
             [$t->get($locale, MenuAction::DailySummary->translationKey()), $t->get($locale, MenuAction::Glossary->translationKey())],
             [$t->get($locale, MenuAction::Language->translationKey()), $t->get($locale, MenuAction::Settings->translationKey())],

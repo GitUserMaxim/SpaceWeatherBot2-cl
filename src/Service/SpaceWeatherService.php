@@ -139,6 +139,14 @@ final class SpaceWeatherService
     /**
      * @return array{value: float, updatedAt: \DateTimeImmutable}
      */
+    /**
+     * @throws ApiException
+     */
+    public function getCurrentKp(): float
+    {
+        return $this->latestKp()['value'];
+    }
+
     private function latestKp(): array
     {
         $rows = $this->noaa->getPlanetaryKIndex();

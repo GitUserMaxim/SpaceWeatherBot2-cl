@@ -15,6 +15,7 @@ use SpaceWeatherBot\Storage\UserSettings;
 use SpaceWeatherBot\Storage\UserSettingsRepositoryInterface;
 use SpaceWeatherBot\Utils\Html;
 use SpaceWeatherBot\Utils\TimeFormatter;
+use SpaceWeatherBot\Weather\WeatherService;
 
 final class UpdateHandler
 {
@@ -23,6 +24,7 @@ final class UpdateHandler
         private readonly Translator $translator,
         private readonly UserSettingsRepositoryInterface $settingsRepository,
         private readonly SpaceWeatherService $weatherService,
+        private readonly WeatherService $groundWeatherService,
         private readonly AppConfig $config,
         private readonly Locale $defaultLocale,
         private readonly LoggerInterface $logger,
@@ -79,6 +81,7 @@ final class UpdateHandler
             MenuAction::Forecast => $this->sendForecast($chatId, $locale),
             MenuAction::Sun => $this->sendSun($chatId, $locale, $settings),
             MenuAction::DailySummary => $this->sendDailySummary($chatId, $locale),
+            MenuAction::Weather => $this->sendWeather($chatId, $locale, $settings),
             MenuAction::Glossary => $this->reply(
                 $chatId,
                 $this->translator->get($locale, 'glossary.choose'),
@@ -283,6 +286,64 @@ final class UpdateHandler
         ];
 
         $this->reply($chatId, implode("\n", $lines), KeyboardFactory::backOnly($this->translator, $locale));
+    }
+
+    private function sendWeather(int $chatId, Locale $locale, UserSettings $settings): void
+    {
+        $readings = $this->groundWeatherService->getComparison(
+            $this->config->defaultWeatherLat,
+            $this->config->defaultWeatherLon,
+        );
+
+        if ($readings === []) {
+            $this->reply(
+                $chatId,
+                $this->translator->get($locale, 'weather.no_sources'),
+                KeyboardFactory::mainMenu($this->translator, $locale),
+            );
+
+            return;
+        }
+
+        $tz = new \DateTimeZone('UTC');
+        $lines = [
+            Html::bold($this->translator->get($locale, 'weather.title')),
+            Html::line($this->translator->get($locale, 'weather.location'), $this->config->defaultWeatherLocationName),
+            '',
+        ];
+
+        foreach ($readings as $reading) {
+            $lines[] = Html::bold($reading->sourceName);
+            $lines[] = Html::line(
+                $this->translator->get($locale, 'weather.temperature'),
+                $reading->temperatureCelsius !== null ? number_format($reading->temperatureCelsius, 1) . ' °C' : $this->translator->get($locale, 'conditions.na'),
+            );
+            $lines[] = Html::line(
+                $this->translator->get($locale, 'weather.humidity'),
+                $reading->humidityPercent !== null ? $reading->humidityPercent . '%' : $this->translator->get($locale, 'conditions.na'),
+            );
+            $lines[] = Html::line(
+                $this->translator->get($locale, 'weather.wind'),
+                $reading->windSpeedMs !== null ? number_format($reading->windSpeedMs, 1) . ' m/s' : $this->translator->get($locale, 'conditions.na'),
+            );
+            $lines[] = Html::line(
+                $this->translator->get($locale, 'weather.pressure'),
+                $reading->pressureHpa !== null ? number_format($reading->pressureHpa, 0) . ' hPa' : $this->translator->get($locale, 'conditions.na'),
+            );
+            $lines[] = Html::line(
+                $this->translator->get($locale, 'weather.observed'),
+                TimeFormatter::formatForUser($reading->observedAt, $settings->use24HourTime, $tz) . ' UTC',
+            );
+            $lines[] = '';
+        }
+
+        try {
+            $lines[] = Html::line($this->translator->get($locale, 'weather.kp_index'), number_format($this->weatherService->getCurrentKp(), 2));
+        } catch (ApiException $exception) {
+            $this->logger->warning('Failed to load Kp for weather screen', ['message' => $exception->getMessage()]);
+        }
+
+        $this->reply($chatId, implode("\n", $lines), KeyboardFactory::mainMenu($this->translator, $locale));
     }
 
     private function sendSettings(int $chatId, Locale $locale, UserSettings $settings): void

@@ -18,6 +18,9 @@ use SpaceWeatherBot\Service\SpaceWeatherService;
 use SpaceWeatherBot\Storage\JsonUserSettingsRepository;
 use SpaceWeatherBot\Telegram\TelegramClient;
 use SpaceWeatherBot\Telegram\UpdateHandler;
+use SpaceWeatherBot\Weather\OpenMeteoProvider;
+use SpaceWeatherBot\Weather\OpenWeatherMapProvider;
+use SpaceWeatherBot\Weather\WeatherService;
 
 $projectRoot = __DIR__;
 
@@ -46,6 +49,14 @@ $defaultLocale = Locale::fromString($config->defaultLocale);
 $settingsRepository = new JsonUserSettingsRepository($config, $defaultLocale);
 $weatherService = new SpaceWeatherService($noaa);
 
+$groundWeatherProviders = [new OpenMeteoProvider($cachedHttp)];
+
+if ($config->openWeatherMapApiKey !== null && $config->openWeatherMapApiKey !== '') {
+    $groundWeatherProviders[] = new OpenWeatherMapProvider($cachedHttp, $config->openWeatherMapApiKey);
+}
+
+$groundWeatherService = new WeatherService($groundWeatherProviders, $logger);
+
 $telegram = new TelegramClient(new GuzzleClient(), $config->telegramBotToken, $logger);
 
 $updateHandler = new UpdateHandler(
@@ -53,6 +64,7 @@ $updateHandler = new UpdateHandler(
     $translator,
     $settingsRepository,
     $weatherService,
+    $groundWeatherService,
     $config,
     $defaultLocale,
     $logger,

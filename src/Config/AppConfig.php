@@ -15,6 +15,10 @@ final class AppConfig
         public readonly string $developerName,
         public readonly string $defaultLocale,
         public readonly string $projectRoot,
+        public readonly float $defaultWeatherLat,
+        public readonly float $defaultWeatherLon,
+        public readonly string $defaultWeatherLocationName,
+        public readonly ?string $openWeatherMapApiKey,
         public readonly string $version = '1.0.0',
     ) {
     }
@@ -30,6 +34,13 @@ final class AppConfig
             developerName: self::optionalEnv('DEVELOPER_NAME') ?? 'Maxim',
             defaultLocale: self::optionalEnv('DEFAULT_LOCALE') ?? 'en',
             projectRoot: $projectRoot,
+            // Default: Ostankino, the practical geographic center of Moscow's
+            // North-Eastern Administrative Okrug (SVAO). Override via .env for
+            // a different city/district.
+            defaultWeatherLat: (float) (self::optionalEnv('WEATHER_LAT') ?? '55.8197'),
+            defaultWeatherLon: (float) (self::optionalEnv('WEATHER_LON') ?? '37.6117'),
+            defaultWeatherLocationName: self::optionalEnv('WEATHER_LOCATION_NAME') ?? 'Moscow, NE (Ostankino)',
+            openWeatherMapApiKey: self::optionalEnv('OPENWEATHERMAP_API_KEY'),
         );
     }
 

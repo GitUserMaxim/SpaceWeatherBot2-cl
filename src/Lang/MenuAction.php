@@ -11,6 +11,7 @@ enum MenuAction
     case Sun;
     case Glossary;
     case DailySummary;
+    case Weather;
     case Language;
     case Settings;
     case About;
@@ -44,6 +45,7 @@ enum MenuAction
             self::Sun => 'menu.sun',
             self::Glossary => 'menu.glossary',
             self::DailySummary => 'menu.daily_summary',
+            self::Weather => 'menu.weather',
             self::Language => 'menu.language',
             self::Settings => 'menu.settings',
             self::About => 'menu.about',
