@@ -68,8 +68,6 @@ final class SpaceWeatherService
         $days = [
             ['label' => 'forecast.today', 'offset' => 0],
             ['label' => 'forecast.tomorrow', 'offset' => 1],
-            ['label' => 'forecast.day_plus_2', 'offset' => 2],
-            ['label' => 'forecast.day_plus_3', 'offset' => 3],
         ];
 
         $result = [];

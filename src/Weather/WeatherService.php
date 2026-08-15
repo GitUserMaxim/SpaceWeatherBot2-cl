@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SpaceWeatherBot\Weather;
 
 use Psr\Log\LoggerInterface;
+use SpaceWeatherBot\Dto\WeatherForecastDay;
 use SpaceWeatherBot\Dto\WeatherReading;
 
 final class WeatherService
@@ -42,5 +43,28 @@ final class WeatherService
         }
 
         return $readings;
+    }
+
+    /**
+     * Same tolerance as getComparison(): a failing provider is skipped, not fatal.
+     *
+     * @return array<string, list<WeatherForecastDay>> keyed by provider name
+     */
+    public function getForecastComparison(float $lat, float $lon, int $days): array
+    {
+        $forecasts = [];
+
+        foreach ($this->providers as $provider) {
+            try {
+                $forecasts[$provider->name()] = $provider->fetchForecast($lat, $lon, $days);
+            } catch (\Throwable $exception) {
+                $this->logger->warning('Weather forecast provider failed', [
+                    'provider' => $provider->name(),
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return $forecasts;
     }
 }

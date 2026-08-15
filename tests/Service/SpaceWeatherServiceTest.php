@@ -131,7 +131,7 @@ final class SpaceWeatherServiceTest extends TestCase
         self::assertSame(4.33, (new SpaceWeatherService($noaa))->getCurrentKp());
     }
 
-    public function testForecastMapsNoaaDayOffsetsOntoTodayTomorrowPlus2Plus3(): void
+    public function testForecastMapsNoaaDayOffsetsOntoTodayAndTomorrow(): void
     {
         $noaa = (new FakeNoaaClient())
             ->withPlanetaryKIndex([['time_tag' => '2026-07-27T12:00:00', 'kp_index' => 6.0]])
@@ -144,34 +144,23 @@ final class SpaceWeatherServiceTest extends TestCase
         $service = new SpaceWeatherService($noaa);
         $days = $service->getForecast();
 
-        self::assertCount(4, $days);
+        self::assertCount(2, $days);
         self::assertSame(
-            ['forecast.today', 'forecast.tomorrow', 'forecast.day_plus_2', 'forecast.day_plus_3'],
+            ['forecast.today', 'forecast.tomorrow'],
             array_map(static fn ($day) => $day->label, $days),
         );
 
         // NOAA's own "date" field on this row IS today, so Day-1 figures land on
-        // "today", Day-2 on "tomorrow", Day-3 on "+2 days". NOAA has no Day-4 figure
-        // at all, so "+3 days" reuses the Day-3 numbers as the closest stand-in.
+        // "today" and Day-2 on "tomorrow".
         self::assertSame(5, $days[0]->mClassProbability);
         self::assertSame(1, $days[0]->xClassProbability);
 
         self::assertSame(10, $days[1]->mClassProbability);
         self::assertSame(2, $days[1]->xClassProbability);
 
-        self::assertSame(15, $days[2]->mClassProbability);
-        self::assertSame(3, $days[2]->xClassProbability);
-
-        self::assertSame(15, $days[3]->mClassProbability);
-        self::assertSame(3, $days[3]->xClassProbability);
-
-        // kpExpected comes from the bulletin's per-day 3-hourly max. The default
-        // fixture bulletin covers today/+1/+2 UTC; "+3 days" isn't covered by
-        // NOAA at all, so it reuses the +2 day's figures as the closest stand-in.
+        // kpExpected comes from the bulletin's per-day 3-hourly max.
         self::assertSame(4.00, $days[0]->kpExpected);
         self::assertSame(3.67, $days[1]->kpExpected);
-        self::assertSame(2.67, $days[2]->kpExpected);
-        self::assertSame(2.67, $days[3]->kpExpected);
 
         // Dates are consecutive, starting today, one per day.
         $expectedStart = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
@@ -226,13 +215,9 @@ final class SpaceWeatherServiceTest extends TestCase
         // Minor + Moderate + Strong-Extreme summed per day column.
         self::assertSame(36, $days[0]->stormProbability);
         self::assertSame(31, $days[1]->stormProbability);
-        self::assertSame(12, $days[2]->stormProbability);
-        // "+3 days" isn't in the bulletin at all - nearest available (+2) is reused.
-        self::assertSame(12, $days[3]->stormProbability);
 
         self::assertSame(4.00, $days[0]->kpExpected);
         self::assertSame(3.67, $days[1]->kpExpected);
-        self::assertSame(2.67, $days[2]->kpExpected);
     }
 
     public function testForecastFallsBackToKpBasedEstimateWhenBulletinDoesNotParse(): void

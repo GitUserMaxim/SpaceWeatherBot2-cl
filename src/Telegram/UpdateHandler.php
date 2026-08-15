@@ -201,6 +201,46 @@ final class UpdateHandler
             $lines[] = '';
         }
 
+        $dayLabels = [$this->translator->get($locale, 'forecast.today'), $this->translator->get($locale, 'forecast.tomorrow')];
+        $weatherForecasts = $this->groundWeatherService->getForecastComparison(
+            $this->config->defaultWeatherLat,
+            $this->config->defaultWeatherLon,
+            count($dayLabels),
+        );
+
+        if ($weatherForecasts !== []) {
+            $lines[] = Html::bold($this->translator->get($locale, 'forecast.weather_title'));
+            $lines[] = '';
+
+            foreach ($weatherForecasts as $sourceName => $sourceDays) {
+                $lines[] = Html::bold($sourceName);
+
+                foreach ($sourceDays as $index => $day) {
+                    $lines[] = Html::bold($dayLabels[$index] ?? $day->date);
+                    $lines[] = Html::line(
+                        $this->translator->get($locale, 'weather.temperature'),
+                        ($day->tempMinCelsius !== null && $day->tempMaxCelsius !== null)
+                            ? number_format($day->tempMinCelsius, 1) . '–' . number_format($day->tempMaxCelsius, 1) . ' °C'
+                            : $this->translator->get($locale, 'app.na'),
+                    );
+                    $lines[] = Html::line(
+                        $this->translator->get($locale, 'weather.humidity'),
+                        $day->humidityPercent !== null ? $day->humidityPercent . '%' : $this->translator->get($locale, 'app.na'),
+                    );
+                    $lines[] = Html::line(
+                        $this->translator->get($locale, 'weather.wind'),
+                        $day->windSpeedMs !== null ? number_format($day->windSpeedMs, 1) . ' m/s' : $this->translator->get($locale, 'app.na'),
+                    );
+                    $lines[] = Html::line(
+                        $this->translator->get($locale, 'weather.pressure'),
+                        $day->pressureMmHg !== null ? number_format($day->pressureMmHg, 0) . ' mmHg' : $this->translator->get($locale, 'app.na'),
+                    );
+                }
+
+                $lines[] = '';
+            }
+        }
+
         $this->reply($chatId, implode("\n", $lines), KeyboardFactory::backOnly($this->translator, $locale));
     }
 
@@ -244,7 +284,7 @@ final class UpdateHandler
             );
             $lines[] = Html::line(
                 $this->translator->get($locale, 'weather.pressure'),
-                $reading->pressureHpa !== null ? number_format($reading->pressureHpa, 0) . ' hPa' : $this->translator->get($locale, 'app.na'),
+                $reading->pressureMmHg !== null ? number_format($reading->pressureMmHg, 0) . ' mmHg' : $this->translator->get($locale, 'app.na'),
             );
             $lines[] = Html::line(
                 $this->translator->get($locale, 'weather.observed'),
