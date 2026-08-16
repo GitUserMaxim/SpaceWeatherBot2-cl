@@ -173,7 +173,7 @@ final class UpdateHandler
     private function sendForecast(int $chatId, Locale $locale): void
     {
         try {
-            $days = $this->weatherService->getForecast();
+            $spaceDays = $this->weatherService->getForecast();
         } catch (ApiException $exception) {
             $this->logger->warning('Failed to load forecast', ['message' => $exception->getMessage()]);
             $this->reply(
@@ -185,58 +185,55 @@ final class UpdateHandler
             return;
         }
 
-        $lines = [Html::bold($this->translator->get($locale, 'forecast.title')), ''];
-
-        foreach ($days as $day) {
-            $lines[] = Html::bold($this->translator->get($locale, $day->label));
-
-            if ($day->kpExpected !== null) {
-                $lines[] = Html::line($this->translator->get($locale, 'forecast.kp'), number_format($day->kpExpected, 2));
-            }
-
-            $lines[] = Html::line($this->translator->get($locale, 'forecast.storm_prob'), $day->stormProbability . '%');
-            $lines[] = Html::line($this->translator->get($locale, 'forecast.m_prob'), $day->mClassProbability . '%');
-            $lines[] = Html::line($this->translator->get($locale, 'forecast.x_prob'), $day->xClassProbability . '%');
-            $lines[] = $this->translator->get($locale, $day->summaryKey);
-            $lines[] = '';
-        }
-
-        $dayLabels = [$this->translator->get($locale, 'forecast.today'), $this->translator->get($locale, 'forecast.tomorrow')];
         $weatherForecasts = $this->groundWeatherService->getForecastComparison(
             $this->config->defaultWeatherLat,
             $this->config->defaultWeatherLon,
-            count($dayLabels),
+            count($spaceDays),
         );
 
-        if ($weatherForecasts !== []) {
-            $lines[] = Html::bold($this->translator->get($locale, 'forecast.weather_title'));
+        $dayTitleKeys = ['forecast.for_today', 'forecast.for_tomorrow'];
+        $lines = [];
+
+        foreach ($spaceDays as $index => $spaceDay) {
+            $lines[] = Html::bold($this->translator->get($locale, $dayTitleKeys[$index] ?? $spaceDay->label));
+            $lines[] = '';
+
+            if ($spaceDay->kpExpected !== null) {
+                $lines[] = Html::line($this->translator->get($locale, 'forecast.kp'), number_format($spaceDay->kpExpected, 2));
+            }
+
+            $lines[] = Html::line($this->translator->get($locale, 'forecast.storm_prob'), $spaceDay->stormProbability . '%');
+            $lines[] = Html::line($this->translator->get($locale, 'forecast.m_prob'), $spaceDay->mClassProbability . '%');
+            $lines[] = Html::line($this->translator->get($locale, 'forecast.x_prob'), $spaceDay->xClassProbability . '%');
+            $lines[] = $this->translator->get($locale, $spaceDay->summaryKey);
             $lines[] = '';
 
             foreach ($weatherForecasts as $sourceName => $sourceDays) {
-                $lines[] = Html::bold($sourceName);
+                $weatherDay = $sourceDays[$index] ?? null;
 
-                foreach ($sourceDays as $index => $day) {
-                    $lines[] = Html::bold($dayLabels[$index] ?? $day->date);
-                    $lines[] = Html::line(
-                        $this->translator->get($locale, 'weather.temperature'),
-                        ($day->tempMinCelsius !== null && $day->tempMaxCelsius !== null)
-                            ? number_format($day->tempMinCelsius, 1) . '–' . number_format($day->tempMaxCelsius, 1) . ' °C'
-                            : $this->translator->get($locale, 'app.na'),
-                    );
-                    $lines[] = Html::line(
-                        $this->translator->get($locale, 'weather.humidity'),
-                        $day->humidityPercent !== null ? $day->humidityPercent . '%' : $this->translator->get($locale, 'app.na'),
-                    );
-                    $lines[] = Html::line(
-                        $this->translator->get($locale, 'weather.wind'),
-                        $day->windSpeedMs !== null ? number_format($day->windSpeedMs, 1) . ' m/s' : $this->translator->get($locale, 'app.na'),
-                    );
-                    $lines[] = Html::line(
-                        $this->translator->get($locale, 'weather.pressure'),
-                        $day->pressureMmHg !== null ? number_format($day->pressureMmHg, 0) . ' mmHg' : $this->translator->get($locale, 'app.na'),
-                    );
+                if ($weatherDay === null) {
+                    continue;
                 }
 
+                $lines[] = Html::bold($sourceName);
+                $lines[] = Html::line(
+                    $this->translator->get($locale, 'weather.temperature'),
+                    ($weatherDay->tempMinCelsius !== null && $weatherDay->tempMaxCelsius !== null)
+                        ? number_format($weatherDay->tempMinCelsius, 1) . '–' . number_format($weatherDay->tempMaxCelsius, 1) . ' °C'
+                        : $this->translator->get($locale, 'app.na'),
+                );
+                $lines[] = Html::line(
+                    $this->translator->get($locale, 'weather.humidity'),
+                    $weatherDay->humidityPercent !== null ? $weatherDay->humidityPercent . '%' : $this->translator->get($locale, 'app.na'),
+                );
+                $lines[] = Html::line(
+                    $this->translator->get($locale, 'weather.wind'),
+                    $weatherDay->windSpeedMs !== null ? number_format($weatherDay->windSpeedMs, 1) . ' m/s' : $this->translator->get($locale, 'app.na'),
+                );
+                $lines[] = Html::line(
+                    $this->translator->get($locale, 'weather.pressure'),
+                    $weatherDay->pressureMmHg !== null ? number_format($weatherDay->pressureMmHg, 0) . ' mmHg' : $this->translator->get($locale, 'app.na'),
+                );
                 $lines[] = '';
             }
         }

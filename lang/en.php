@@ -21,9 +21,10 @@ return [
         'explain' => '💬 Explain in Simple Words',
     ],
     'forecast' => [
-        'title' => '📈 Space Weather Forecast',
         'today' => 'Today',
         'tomorrow' => 'Tomorrow',
+        'for_today' => '📅 Forecast for Today',
+        'for_tomorrow' => '📅 Forecast for Tomorrow',
         'kp' => 'Expected Kp',
         'storm_prob' => 'Storm probability',
         'm_prob' => 'M-class flare probability',
@@ -32,7 +33,6 @@ return [
         'summary_moderate' => 'Moderate activity possible.',
         'summary_elevated' => 'Elevated geomagnetic activity possible.',
         'summary_storm' => 'Geomagnetic storm conditions are possible.',
-        'weather_title' => '🌦 Weather Forecast',
     ],
     'sun' => [
         'title' => '☀ Sun Activity',
