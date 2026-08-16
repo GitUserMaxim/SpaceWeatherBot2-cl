@@ -49,9 +49,18 @@ final class UpdateHandler
             return;
         }
 
-        $text = trim((string) ($message['text'] ?? ''));
         $settings = $this->settingsRepository->find($chatId) ?? new UserSettings($chatId, $this->defaultLocale);
         $locale = $settings->locale;
+
+        $location = $message['location'] ?? null;
+
+        if (is_array($location) && isset($location['latitude'], $location['longitude'])) {
+            $this->handleLocationShared($chatId, $settings, (float) $location['latitude'], (float) $location['longitude']);
+
+            return;
+        }
+
+        $text = trim((string) ($message['text'] ?? ''));
 
         if ($text === '/start' || $text === '/menu') {
             $this->settingsRepository->save($settings);
@@ -78,18 +87,14 @@ final class UpdateHandler
 
         match ($action) {
             MenuAction::Sun => $this->sendSun($chatId, $locale),
-            MenuAction::Forecast => $this->sendForecast($chatId, $locale),
-            MenuAction::Weather => $this->sendWeather($chatId, $locale),
+            MenuAction::Forecast => $this->sendForecast($chatId, $locale, $settings),
+            MenuAction::Weather => $this->sendWeather($chatId, $locale, $settings),
             MenuAction::Glossary => $this->reply(
                 $chatId,
                 $this->translator->get($locale, 'glossary.choose'),
                 KeyboardFactory::glossaryMenu($this->translator, $locale),
             ),
-            MenuAction::Language => $this->reply(
-                $chatId,
-                $this->translator->get($locale, 'language.choose'),
-                KeyboardFactory::languageMenu($this->translator, $locale),
-            ),
+            MenuAction::Settings => $this->sendSettings($chatId, $locale, $settings),
             MenuAction::About => $this->sendAbout($chatId, $locale),
             MenuAction::Back => $this->reply(
                 $chatId,
@@ -170,7 +175,7 @@ final class UpdateHandler
         $this->reply($chatId, implode("\n", $lines), KeyboardFactory::sunMenu($this->translator, $locale));
     }
 
-    private function sendForecast(int $chatId, Locale $locale): void
+    private function sendForecast(int $chatId, Locale $locale, UserSettings $settings): void
     {
         try {
             $spaceDays = $this->weatherService->getForecast();
@@ -185,11 +190,8 @@ final class UpdateHandler
             return;
         }
 
-        $weatherForecasts = $this->groundWeatherService->getForecastComparison(
-            $this->config->defaultWeatherLat,
-            $this->config->defaultWeatherLon,
-            count($spaceDays),
-        );
+        [$lat, $lon] = $this->resolveLocation($settings);
+        $weatherForecasts = $this->groundWeatherService->getForecastComparison($lat, $lon, count($spaceDays));
 
         $dayTitleKeys = ['forecast.for_today', 'forecast.for_tomorrow'];
         $lines = [];
@@ -241,12 +243,10 @@ final class UpdateHandler
         $this->reply($chatId, implode("\n", $lines), KeyboardFactory::backOnly($this->translator, $locale));
     }
 
-    private function sendWeather(int $chatId, Locale $locale): void
+    private function sendWeather(int $chatId, Locale $locale, UserSettings $settings): void
     {
-        $readings = $this->groundWeatherService->getComparison(
-            $this->config->defaultWeatherLat,
-            $this->config->defaultWeatherLon,
-        );
+        [$lat, $lon] = $this->resolveLocation($settings);
+        $readings = $this->groundWeatherService->getComparison($lat, $lon);
 
         if ($readings === []) {
             $this->reply(
@@ -261,7 +261,7 @@ final class UpdateHandler
         $tz = new \DateTimeZone('UTC');
         $lines = [
             Html::bold($this->translator->get($locale, 'weather.title')),
-            Html::line($this->translator->get($locale, 'weather.location'), $this->config->defaultWeatherLocationName),
+            Html::line($this->translator->get($locale, 'weather.location'), $settings->locationName ?? $this->config->defaultWeatherLocationName),
             '',
         ];
 
@@ -297,6 +297,25 @@ final class UpdateHandler
         }
 
         $this->reply($chatId, implode("\n", $lines), KeyboardFactory::mainMenu($this->translator, $locale));
+    }
+
+    private function sendSettings(int $chatId, Locale $locale, UserSettings $settings): void
+    {
+        $languageLabel = $settings->locale === Locale::En
+            ? $this->translator->get($locale, 'language.en')
+            : $this->translator->get($locale, 'language.ru');
+
+        $lines = [
+            Html::bold($this->translator->get($locale, 'settings.title')),
+            '',
+            Html::line($this->translator->get($locale, 'settings.language'), $languageLabel),
+            Html::line(
+                $this->translator->get($locale, 'settings.location'),
+                $settings->locationName ?? $this->translator->get($locale, 'settings.location_default'),
+            ),
+        ];
+
+        $this->reply($chatId, implode("\n", $lines), KeyboardFactory::settingsMenu($this->translator, $locale));
     }
 
     private function sendAbout(int $chatId, Locale $locale): void
@@ -371,8 +390,33 @@ final class UpdateHandler
         $this->reply(
             $chatId,
             $this->translator->get($newLocale, 'language.changed'),
-            KeyboardFactory::mainMenu($this->translator, $newLocale),
+            KeyboardFactory::settingsMenu($this->translator, $newLocale),
         );
+    }
+
+    private function handleLocationShared(int $chatId, UserSettings $settings, float $lat, float $lon): void
+    {
+        $locale = $settings->locale;
+        $name = sprintf('%.4f, %.4f', $lat, $lon);
+        $updated = $settings->withLocation($lat, $lon, $name);
+        $this->settingsRepository->save($updated);
+
+        $this->reply(
+            $chatId,
+            $this->translator->get($locale, 'settings.location_saved'),
+            KeyboardFactory::settingsMenu($this->translator, $locale),
+        );
+    }
+
+    /**
+     * @return array{0: float, 1: float}
+     */
+    private function resolveLocation(UserSettings $settings): array
+    {
+        return [
+            $settings->locationLat ?? $this->config->defaultWeatherLat,
+            $settings->locationLon ?? $this->config->defaultWeatherLon,
+        ];
     }
 
     /**

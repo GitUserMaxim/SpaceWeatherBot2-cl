@@ -10,7 +10,10 @@ use SpaceWeatherBot\Lang\Translator;
 
 /**
  * Builds Telegram ReplyKeyboardMarkup arrays. Keyboards are plain button-text
- * driven, matching how Translator::resolveMenuAction() matches incoming text.
+ * driven, matching how Translator::resolveMenuAction() matches incoming text -
+ * except the location button in settingsMenu(), which is a native Telegram
+ * "share location" button (request_location) and arrives as a location
+ * message, not text.
  */
 final class KeyboardFactory
 {
@@ -22,7 +25,7 @@ final class KeyboardFactory
         return self::keyboard([
             [$t->get($locale, MenuAction::Weather->translationKey()), $t->get($locale, MenuAction::Sun->translationKey())],
             [$t->get($locale, MenuAction::Forecast->translationKey()), $t->get($locale, MenuAction::Glossary->translationKey())],
-            [$t->get($locale, MenuAction::Language->translationKey()), $t->get($locale, MenuAction::About->translationKey())],
+            [$t->get($locale, MenuAction::Settings->translationKey()), $t->get($locale, MenuAction::About->translationKey())],
         ]);
     }
 
@@ -66,10 +69,11 @@ final class KeyboardFactory
     /**
      * @return array<string, mixed>
      */
-    public static function languageMenu(Translator $t, Locale $locale): array
+    public static function settingsMenu(Translator $t, Locale $locale): array
     {
         return self::keyboard([
             [$t->get($locale, MenuAction::SetLanguageEn->translationKey()), $t->get($locale, MenuAction::SetLanguageRu->translationKey())],
+            [['text' => $t->get($locale, 'settings.send_location'), 'request_location' => true]],
             [$t->get($locale, MenuAction::Back->translationKey())],
         ]);
     }
@@ -85,7 +89,7 @@ final class KeyboardFactory
     }
 
     /**
-     * @param list<list<string>> $rows
+     * @param list<list<string|array<string, mixed>>> $rows
      *
      * @return array<string, mixed>
      */

@@ -10,7 +10,7 @@ enum MenuAction
     case Forecast;
     case Weather;
     case Glossary;
-    case Language;
+    case Settings;
     case About;
     case Back;
     case Explain;
@@ -38,7 +38,7 @@ enum MenuAction
             self::Forecast => 'menu.forecast',
             self::Weather => 'menu.weather',
             self::Glossary => 'menu.glossary',
-            self::Language => 'menu.language',
+            self::Settings => 'menu.settings',
             self::About => 'menu.about',
             self::Back => 'app.back',
             self::Explain => 'menu.explain',

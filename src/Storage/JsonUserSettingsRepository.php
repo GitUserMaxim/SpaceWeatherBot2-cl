@@ -39,6 +39,9 @@ final class JsonUserSettingsRepository implements UserSettingsRepositoryInterfac
         return new UserSettings(
             chatId: $chatId,
             locale: Locale::fromString((string) ($data['locale'] ?? $this->defaultLocale->value)),
+            locationLat: isset($data['location_lat']) ? (float) $data['location_lat'] : null,
+            locationLon: isset($data['location_lon']) ? (float) $data['location_lon'] : null,
+            locationName: isset($data['location_name']) ? (string) $data['location_name'] : null,
         );
     }
 
@@ -47,6 +50,9 @@ final class JsonUserSettingsRepository implements UserSettingsRepositoryInterfac
         $path = $this->pathFor($settings->chatId);
         $payload = json_encode([
             'locale' => $settings->locale->value,
+            'location_lat' => $settings->locationLat,
+            'location_lon' => $settings->locationLon,
+            'location_name' => $settings->locationName,
         ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
 
         if (file_put_contents($path, $payload) === false) {

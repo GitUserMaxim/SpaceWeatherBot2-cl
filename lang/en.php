@@ -16,7 +16,7 @@ return [
         'forecast' => '📈 Forecast',
         'weather' => '🌦 Weather',
         'glossary' => '📚 Glossary',
-        'language' => '🌐 Language',
+        'settings' => '⚙ Settings',
         'about' => 'ℹ About',
         'explain' => '💬 Explain in Simple Words',
     ],
@@ -86,11 +86,17 @@ return [
         'source_unavailable' => 'temporarily unavailable',
     ],
     'language' => [
-        'title' => '🌐 Language',
-        'choose' => 'Choose your language:',
         'changed' => 'Language updated.',
         'en' => '🇬🇧 English',
         'ru' => '🇷🇺 Русский',
+    ],
+    'settings' => [
+        'title' => '⚙ Settings',
+        'language' => 'Language',
+        'location' => 'Location',
+        'location_default' => 'Default (Moscow, VDNKh)',
+        'send_location' => '📍 Send Location',
+        'location_saved' => '📍 Location saved! Forecast and Weather will now use it.',
     ],
     'about' => [
         'title' => 'ℹ About',
