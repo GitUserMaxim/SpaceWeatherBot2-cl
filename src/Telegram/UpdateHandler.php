@@ -10,6 +10,7 @@ use SpaceWeatherBot\Config\AppConfig;
 use SpaceWeatherBot\Lang\Locale;
 use SpaceWeatherBot\Lang\MenuAction;
 use SpaceWeatherBot\Lang\Translator;
+use SpaceWeatherBot\Location\GeocoderInterface;
 use SpaceWeatherBot\Service\SpaceWeatherService;
 use SpaceWeatherBot\Storage\UserSettings;
 use SpaceWeatherBot\Storage\UserSettingsRepositoryInterface;
@@ -25,6 +26,7 @@ final class UpdateHandler
         private readonly UserSettingsRepositoryInterface $settingsRepository,
         private readonly SpaceWeatherService $weatherService,
         private readonly WeatherService $groundWeatherService,
+        private readonly GeocoderInterface $geocoder,
         private readonly AppConfig $config,
         private readonly Locale $defaultLocale,
         private readonly LoggerInterface $logger,
@@ -397,7 +399,7 @@ final class UpdateHandler
     private function handleLocationShared(int $chatId, UserSettings $settings, float $lat, float $lon): void
     {
         $locale = $settings->locale;
-        $name = sprintf('%.4f, %.4f', $lat, $lon);
+        $name = $this->geocoder->reverseGeocode($lat, $lon, $locale) ?? sprintf('%.4f, %.4f', $lat, $lon);
         $updated = $settings->withLocation($lat, $lon, $name);
         $this->settingsRepository->save($updated);
 

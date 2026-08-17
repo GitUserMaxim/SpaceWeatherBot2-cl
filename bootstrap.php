@@ -13,6 +13,7 @@ use SpaceWeatherBot\Api\Noaa\NoaaSwpcClient;
 use SpaceWeatherBot\Config\AppConfig;
 use SpaceWeatherBot\Lang\Locale;
 use SpaceWeatherBot\Lang\Translator;
+use SpaceWeatherBot\Location\NominatimGeocoder;
 use SpaceWeatherBot\Logger\LoggerFactory;
 use SpaceWeatherBot\Service\SpaceWeatherService;
 use SpaceWeatherBot\Storage\JsonUserSettingsRepository;
@@ -39,7 +40,13 @@ foreach (['cache', 'logs', 'users'] as $dir) {
 $config = AppConfig::fromEnvironment($projectRoot);
 $logger = LoggerFactory::create($config);
 
-$httpClient = new GuzzleHttpClient(new GuzzleClient(), $logger);
+$httpClient = new GuzzleHttpClient(new GuzzleClient([
+    'headers' => [
+        // Nominatim (OpenStreetMap) requires a real identifying User-Agent
+        // per its usage policy: https://operations.osmfoundation.org/policies/nominatim/
+        'User-Agent' => 'SpaceWeatherBot/1.0 (+' . $config->githubRepo . ')',
+    ],
+]), $logger);
 $cache = new FilesystemAdapter('noaa', 0, $config->cacheDir());
 $cachedHttp = new CachedHttpClient($httpClient, $cache, $logger);
 $noaa = new NoaaSwpcClient($cachedHttp);
@@ -56,6 +63,11 @@ if ($config->openWeatherMapApiKey !== null && $config->openWeatherMapApiKey !== 
 }
 
 $groundWeatherService = new WeatherService($groundWeatherProviders, $logger);
+$geocoder = new NominatimGeocoder(new GuzzleClient([
+    'headers' => [
+        'User-Agent' => 'SpaceWeatherBot/1.0 (+' . $config->githubRepo . ')',
+    ],
+]), $logger);
 
 $telegram = new TelegramClient(new GuzzleClient(), $config->telegramBotToken, $logger);
 
@@ -65,6 +77,7 @@ $updateHandler = new UpdateHandler(
     $settingsRepository,
     $weatherService,
     $groundWeatherService,
+    $geocoder,
     $config,
     $defaultLocale,
     $logger,
